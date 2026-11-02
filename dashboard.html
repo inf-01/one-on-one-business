@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Micro Tareas">
+<meta name="theme-color" content="#181B21">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="favicon.png">
+<title>Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="app">
+  <!-- Header: volver al calendario -->
+  <header class="neu">
+    <div class="nav-group">
+      <a class="neu-btn nav-btn" href="index.html" aria-label="Volver al calendario" title="Volver al calendario">‹</a>
+      <a class="neu-btn today-btn" href="index.html">Calendario</a>
+    </div>
+    <div class="month-title">Dashboard</div>
+    <div class="nav-group">
+      <a class="neu-btn nav-btn" href="#" id="refreshBtn" aria-label="Actualizar datos" title="Actualizar datos">↻</a>
+    </div>
+  </header>
+
+  <!-- Avance global -->
+  <div class="neu progress-card">
+    <span class="progress-label">Avance global</span>
+    <div class="progress-track"><div class="progress-fill" id="globalFill"></div></div>
+    <span class="progress-count" id="globalCount">0/0</span>
+  </div>
+
+  <!-- Total completadas vs pendientes -->
+  <div class="dash-grid">
+    <div class="neu stat">
+      <span class="progress-label">Completadas</span>
+      <span class="stat-value green" id="statDone">0</span>
+    </div>
+    <div class="neu stat">
+      <span class="progress-label">Pendientes</span>
+      <span class="stat-value pink" id="statPending">0</span>
+    </div>
+    <div class="neu stat">
+      <span class="progress-label">Total tareas</span>
+      <span class="stat-value" id="statTotal">0</span>
+    </div>
+  </div>
+
+  <!-- Rendimiento por usuario -->
+  <div class="section-title">Rendimiento por usuario</div>
+  <div class="vs-grid">
+    <div class="neu vs-card">
+      <span class="vs-name jose">JOSÉ</span>
+      <div class="progress-track"><div class="progress-fill jose" id="joseFill"></div></div>
+      <span class="vs-meta" id="joseMeta">0/0 completadas · 0%</span>
+    </div>
+    <div class="neu vs-card">
+      <span class="vs-name luis">LUIS</span>
+      <div class="progress-track"><div class="progress-fill luis" id="luisFill"></div></div>
+      <span class="vs-meta" id="luisMeta">0/0 completadas · 0%</span>
+    </div>
+  </div>
+
+  <!-- Velocidad de finalización -->
+  <div class="section-title">Velocidad de finalización</div>
+  <div class="neu speed-card">
+    <div class="speed-main">
+      <span class="stat-value" id="speedAvg">—</span>
+      <span class="progress-label">Tiempo promedio por tarea completada</span>
+    </div>
+    <div class="speed-split">
+      <div class="speed-item">
+        <span class="speed-user jose">JOSÉ</span>
+        <span class="speed-val" id="speedJose">—</span>
+      </div>
+      <div class="speed-item">
+        <span class="speed-user luis">LUIS</span>
+        <span class="speed-val" id="speedLuis">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="dash-note" id="dashNote">Cargando datos…</div>
+
+  <div class="brand">
+    <div class="brand-title"><span class="bt-name"><span class="bt-dia">One on One</span> <span class="bt-cero">Business</span></span><span class="bt-sep">|</span><span class="bt-sub">Micro-tareas y Foco</span></div>
+    <button class="brand-btn" type="button" id="brandBtn" aria-label="One on One Business">
+      <img class="logo-dark" src="logo-dark.png" alt="One on One Business">
+      <img class="logo-light" src="logo-light.png" alt="One on One Business">
+    </button>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/dashboard.js"></script>
+</body>
+</html>
