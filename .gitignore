@@ -1,0 +1,35 @@
+# ============================================================
+# ONE ON ONE BUSINESS — .gitignore
+# ============================================================
+
+# Dependencias
+node_modules/
+
+# Build (Vercel lo genera en cada deploy; no necesita versionarse)
+dist/
+
+# Variables de entorno (NUNCA subir al repo — usan Vercel env vars)
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# Vercel
+.vercel/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+*.log
+.idea/
+.vscode/
+
+# Archivos de datos internos / conversaciones IA (no son código fuente)
+conversi-n-de-index-html-a-gestor-de-proyectos.json
+
+# Logos duplicados (solo se necesitan logo-dark.png y logo-light.png)
+logo con para fondo blanco.png
+logo con para fondo negro.png
+logo-darkold.png
+logo-lightold.png
