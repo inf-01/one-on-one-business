@@ -8,6 +8,7 @@
    - localStorage solo para preferencias de UI (tema/alarma/usuario)
    ============================================================ */
 
+import '../css/styles.css'; // Vite bundlea el CSS junto con este módulo
 import { API, ApiError } from './api';
 import { drawIcon } from './icons';
 import type { Estado, Task, TaskRaw } from './types';
@@ -182,7 +183,7 @@ drawIcon($<HTMLElement>('exportIcon'), 'download');
 drawIcon($<HTMLElement>('importIcon'), 'upload');
 drawIcon($<HTMLElement>('minutaIcon'), 'doc');
 drawIcon($<HTMLElement>('dashIcon'), 'chart');
-drawIcon($<HTMLElement>('dataRoomIcon'), 'upload');
+drawIcon($<HTMLElement>('dataRoomIcon'), 'doc');
 
 /* ---------- Tema claro/oscuro (botón en el header) ---------- */
 const themeBtn = $<HTMLButtonElement>('themeBtn');
