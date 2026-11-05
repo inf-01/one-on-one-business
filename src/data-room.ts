@@ -8,6 +8,7 @@
    - Tema claro/oscuro compartido con el calendario
    ============================================================ */
 
+import '../css/styles.css'; // Vite bundlea el CSS junto con este módulo
 import { ApiError, DataRoom as DR } from './api';
 import { drawIcon } from './icons';
 import type { DocumentRow, MinutaRow, Project } from './types';
