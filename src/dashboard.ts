@@ -5,6 +5,7 @@
    - Velocidad de finalización (FechaCreacion → FechaFinalizacion)
    ============================================================ */
 
+import '../css/styles.css'; // Vite bundlea el CSS junto con este módulo
 import { API } from './api';
 import type { Task } from './types';
 
