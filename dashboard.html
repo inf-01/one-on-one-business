@@ -6,14 +6,14 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Micro Tareas">
-<meta name="theme-color" content="#181B21">
+<meta name="apple-mobile-web-app-title" content="One on One Business">
+<meta name="theme-color" content="#020617">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="favicon.png">
-<title>Dashboard</title>
+<title>One on One Business — Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -37,15 +37,19 @@
     <span class="progress-count" id="globalCount">0/0</span>
   </div>
 
-  <!-- Total completadas vs pendientes -->
+  <!-- KPIs: completadas · en progreso · pendientes · total -->
   <div class="dash-grid">
     <div class="neu stat">
       <span class="progress-label">Completadas</span>
       <span class="stat-value green" id="statDone">0</span>
     </div>
     <div class="neu stat">
+      <span class="progress-label">En progreso</span>
+      <span class="stat-value amber" id="statProgress">0</span>
+    </div>
+    <div class="neu stat">
       <span class="progress-label">Pendientes</span>
-      <span class="stat-value pink" id="statPending">0</span>
+      <span class="stat-value soft" id="statPending">0</span>
     </div>
     <div class="neu stat">
       <span class="progress-label">Total tareas</span>
@@ -53,18 +57,26 @@
     </div>
   </div>
 
-  <!-- Rendimiento por usuario -->
-  <div class="section-title">Rendimiento por usuario</div>
-  <div class="vs-grid">
-    <div class="neu vs-card">
-      <span class="vs-name jose">JOSÉ</span>
-      <div class="progress-track"><div class="progress-fill jose" id="joseFill"></div></div>
-      <span class="vs-meta" id="joseMeta">0/0 completadas · 0%</span>
+  <!-- Rendimiento por responsable: tabla estructurada con divisores -->
+  <div class="card">
+    <div class="card-head">
+      <h2>Rendimiento por responsable</h2>
+      <span class="progress-label">Histórico completo</span>
     </div>
-    <div class="neu vs-card">
-      <span class="vs-name luis">LUIS</span>
-      <div class="progress-track"><div class="progress-fill luis" id="luisFill"></div></div>
-      <span class="vs-meta" id="luisMeta">0/0 completadas · 0%</span>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Responsable</th>
+            <th class="num">Total</th>
+            <th class="num">Completadas</th>
+            <th class="num">En progreso</th>
+            <th class="num">Pendientes</th>
+            <th class="num">Avance</th>
+          </tr>
+        </thead>
+        <tbody id="userRows"></tbody>
+      </table>
     </div>
   </div>
 
@@ -98,7 +110,6 @@
   </div>
 </div>
 
-<script src="js/api.js"></script>
-<script src="js/dashboard.js"></script>
+<script type="module" src="/src/dashboard.ts"></script>
 </body>
 </html>

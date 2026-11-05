@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="One on One Business">
+<meta name="theme-color" content="#020617">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="favicon.png">
+<title>One on One Business — Data Room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="app">
+  <!-- Header: volver al calendario -->
+  <header class="neu">
+    <div class="nav-group">
+      <a class="neu-btn nav-btn" href="index.html" aria-label="Volver al calendario" title="Volver al calendario">‹</a>
+      <a class="neu-btn today-btn" href="index.html">Calendario</a>
+    </div>
+    <div class="month-title">Data Room</div>
+    <div class="nav-group">
+      <button class="neu-btn tool-btn" id="themeBtn" aria-label="Cambiar tema" title="Cambiar tema"><span class="pxicon" id="themeIcon"></span></button>
+    </div>
+  </header>
+
+  <!-- Barra de herramientas: selector de proyecto + crear -->
+  <div class="neu dr-toolbar">
+    <span class="dr-label" id="projectLabel">Proyecto</span>
+    <select id="projectSelect" class="dr-select" disabled aria-labelledby="projectLabel">
+      <option>Cargando…</option>
+    </select>
+    <button class="neu-btn save-btn" id="newProjectBtn">Nuevo proyecto</button>
+    <span class="dr-note" id="drNote" hidden></span>
+  </div>
+
+  <!-- Zona de subida (arrastrar y soltar o clic) -->
+  <section class="neu upload-card">
+    <div class="upload-zone" id="uploadZone" role="button" tabindex="0">
+      <span class="pxicon upload-ico" id="uploadIcon" aria-hidden="true"></span>
+      <div class="upload-text">
+        <strong>Arrastra un documento aquí</strong>
+        <span>o haz clic para elegir · PDF, Word, Excel, PowerPoint, imágenes · máx. 15 MB</span>
+      </div>
+      <div class="field upload-cat">
+        <label for="categorySelect">Categoría</label>
+        <select id="categorySelect">
+          <option>Propuestas</option>
+          <option>Contratos</option>
+          <option>Facturas</option>
+          <option>Informes</option>
+          <option>Otros</option>
+        </select>
+      </div>
+    </div>
+    <input type="file" id="fileInput" hidden>
+    <div class="upload-progress" id="uploadProgress" hidden>
+      <div class="progress-track"><div class="progress-fill" id="uploadFill"></div></div>
+      <span class="upload-status" id="uploadStatus">Subiendo…</span>
+    </div>
+  </section>
+
+  <!-- Documentos del proyecto -->
+  <section class="neu card">
+    <div class="card-head">
+      <h2>Documentos</h2>
+      <span class="card-count" id="docCount">0</span>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Archivo</th>
+            <th>Categoría</th>
+            <th>Tamaño</th>
+            <th>Fecha</th>
+            <th class="right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="docRows">
+          <tr><td colspan="5" class="empty">Sin documentos en este proyecto</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Histórico de minutas -->
+  <section class="neu card">
+    <div class="card-head">
+      <h2>Histórico de minutas</h2>
+      <span class="card-count" id="minutaCount">0</span>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Minuta</th>
+            <th class="right">Tareas</th>
+            <th class="right">Acuerdos</th>
+          </tr>
+        </thead>
+        <tbody id="minutaRows">
+          <tr><td colspan="4" class="empty">Sin minutas registradas todavía</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<!-- Modal: nuevo proyecto -->
+<div class="modal-overlay" id="projectOverlay">
+  <div class="neu modal">
+    <h3>Nuevo proyecto</h3>
+    <div class="field">
+      <label for="projectName">Nombre del proyecto</label>
+      <input type="text" id="projectName" maxlength="60" placeholder="Ej. Cliente Norte" autocomplete="off">
+    </div>
+    <div class="modal-actions">
+      <button class="neu-btn" id="projectCancelBtn">Cancelar</button>
+      <button class="neu-btn save-btn" id="projectCreateBtn">Crear</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/src/data-room.ts"></script>
+</body>
+</html>

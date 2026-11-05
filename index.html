@@ -6,14 +6,14 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Micro Tareas">
-<meta name="theme-color" content="#181B21">
+<meta name="apple-mobile-web-app-title" content="One on One Business">
+<meta name="theme-color" content="#020617">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="favicon.png">
-<title>Calendario</title>
+<title>One on One Business — Calendario</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -34,10 +34,11 @@
   <!-- Barra de herramientas: iconos + PROGRESO GENERAL (José + Luis) -->
   <div class="neu toolbar">
     <button class="neu-btn tool-btn" id="alarmBtn" aria-label="Activar alarmas" title="Activar alarmas de tareas"><span class="pxicon" id="alarmIcon"></span></button>
-    <button class="neu-btn tool-btn" id="minutaBtn" aria-label="Minuta rápida" title="Pegar minuta y crear tareas"><span class="pxicon" id="minutaIcon"></span></button>
+    <button class="neu-btn tool-btn" id="minutaBtn" aria-label="Minuta rápida" title="Pegar minuta y que la IA cree las tareas"><span class="pxicon" id="minutaIcon"></span></button>
     <button class="neu-btn tool-btn" id="exportBtn" aria-label="Exportar datos" title="Exportar respaldo"><span class="pxicon" id="exportIcon"></span></button>
     <label class="neu-btn tool-btn" aria-label="Importar datos" title="Importar respaldo"><span class="pxicon" id="importIcon"></span><input type="file" id="importInput" accept="application/json"></label>
     <button class="neu-btn tool-btn" id="dashBtn" aria-label="Dashboard" title="Ver dashboard de métricas"><span class="pxicon" id="dashIcon"></span></button>
+    <button class="neu-btn tool-btn" id="dataRoomBtn" aria-label="Data Room" title="Documentos y minutas por proyecto"><span class="pxicon" id="dataRoomIcon"></span></button>
     <div class="toolbar-progress">
       <span class="progress-label">General</span>
       <div class="progress-track"><div class="progress-fill" id="generalFill"></div></div>
@@ -110,29 +111,52 @@
   </div>
 </div>
 
-<!-- Modal: MINUTA (pegar texto → API) -->
+<!-- Modal: MINUTA (pegar texto → el servidor extrae, reparte y guarda) -->
 <div class="modal-overlay" id="minutaOverlay">
   <div class="neu modal">
     <h3>Minuta del día</h3>
-    <div class="field">
-      <label for="minutaText">Pega el texto (una tarea por línea)</label>
-      <textarea id="minutaText" placeholder="Llamar al cliente&#10;Enviar el informe&#10;Revisar presupuesto"></textarea>
-    </div>
-    <div class="field">
-      <label>Responsable</label>
-      <div class="user-toggle" id="minutaUserToggle">
-        <button type="button" class="neu-btn user-chip active" data-user="José">JOSÉ</button>
-        <button type="button" class="neu-btn user-chip" data-user="Luis">LUIS</button>
+
+    <!-- Formulario: pegar texto y procesar -->
+    <div id="minutaForm">
+      <div class="field">
+        <label for="minutaText">Pega el texto de la minuta (la IA lo convierte en tareas)</label>
+        <textarea id="minutaText" placeholder="Reunión del lunes: José envía la propuesta al cliente el jueves a las 10.&#10;Luis revisa el presupuesto mañana.&#10;Recordar llamar al proveedor."></textarea>
+      </div>
+      <div class="field">
+        <label>Responsable</label>
+        <div class="user-toggle" id="minutaUserToggle">
+          <button type="button" class="neu-btn user-chip active" data-user="José">JOSÉ</button>
+          <button type="button" class="neu-btn user-chip" data-user="Luis">LUIS</button>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="neu-btn" id="minutaCancelBtn">Cancelar</button>
+        <button class="neu-btn save-btn" id="minutaProcessBtn">Procesar</button>
       </div>
     </div>
-    <div class="modal-actions">
-      <button class="neu-btn" id="minutaCancelBtn">Cancelar</button>
-      <button class="neu-btn save-btn" id="minutaProcessBtn">Procesar</button>
+
+    <!-- Resultado: acuerdos extraídos + tareas creadas en el servidor -->
+    <div class="minuta-result" id="minutaResult" hidden>
+      <div class="minuta-result-head">
+        <span class="badge completada">Procesada</span>
+        <h4 id="minutaResultTitle">Minuta procesada</h4>
+      </div>
+      <div class="result-block" id="minutaAcuerdosWrap" hidden>
+        <span class="result-label">Acuerdos</span>
+        <ul class="result-list acuerdos" id="minutaAcuerdos"></ul>
+      </div>
+      <div class="result-block">
+        <span class="result-label">Tareas creadas</span>
+        <ul class="result-list" id="minutaResultTasks"></ul>
+      </div>
+      <p class="result-note" id="minutaResultNote" hidden></p>
+      <div class="modal-actions">
+        <button class="neu-btn save-btn" id="minutaDoneBtn">Cerrar</button>
+      </div>
     </div>
   </div>
 </div>
 
-<script src="js/api.js"></script>
-<script src="js/app.js"></script>
+<script type="module" src="/src/app.ts"></script>
 </body>
 </html>

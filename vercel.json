@@ -1,0 +1,8 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/minuta.ts": { "maxDuration": 60 },
+    "api/sync.ts": { "maxDuration": 30 }
+  }
+}
