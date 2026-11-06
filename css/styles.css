@@ -17,9 +17,12 @@
   --border-strong: #c1cad9;
   --text: #0f172a;
   --text-soft: #64748b;
-  --accent: #4f46e5;
-  --accent-strong: #4338ca;
-  --accent-soft: rgba(79, 70, 229, 0.1);
+  /* Color del logo (platino / acero) — Business y acentos de la herramienta */
+  --logo: #2f3a4d;
+  --logo-strong: #1a2433;
+  --accent: #3f536b;
+  --accent-strong: #2f4159;
+  --accent-soft: rgba(63, 83, 107, 0.13);
   --blue: #1d4ed8;
   --jose: #4f46e5;
   --luis: #0284c7;
@@ -42,7 +45,7 @@
   --nm-btn: 5px 5px 12px var(--nm-sh), -5px -5px 12px var(--nm-hi);
   --nm-inset: inset 4px 4px 9px var(--nm-sh), inset -4px -4px 9px var(--nm-hi);
   --nm-inset-deep: inset 7px 7px 16px var(--nm-sh), inset -7px -7px 16px var(--nm-hi);
-  --nm-accent: 6px 6px 16px rgba(79, 70, 229, .38), -4px -4px 12px var(--nm-hi);
+  --nm-accent: 6px 6px 16px rgba(63, 83, 107, .38), -4px -4px 12px var(--nm-hi);
   --shadow: var(--nm-panel);
   --overlay: rgba(15, 23, 42, 0.45);
   box-sizing: border-box;
@@ -59,9 +62,11 @@
     --border-strong: rgba(148, 163, 184, 0.3);
     --text: #e2e8f0;
     --text-soft: #94a3b8;
-    --accent: #6366f1;
-    --accent-strong: #818cf8;
-    --accent-soft: rgba(99, 102, 241, 0.16);
+    --logo: #dee3ec;
+    --logo-strong: #ffffff;
+    --accent: #a9bdd4;
+    --accent-strong: #dee3ec;
+    --accent-soft: rgba(169, 189, 212, 0.16);
     --blue: #60a5fa;
     --jose: #6366f1;
     --luis: #38bdf8;
@@ -76,7 +81,7 @@
     --holiday: #34d399;
     --nm-hi: rgba(255, 255, 255, 0.06);
     --nm-sh: rgba(0, 0, 0, 0.6);
-    --nm-accent: 6px 6px 16px rgba(99, 102, 241, 0.42), -4px -4px 12px var(--nm-hi);
+    --nm-accent: 6px 6px 16px rgba(169, 189, 212, 0.42), -4px -4px 12px var(--nm-hi);
     --shadow: var(--nm-panel);
     --overlay: rgba(2, 6, 23, 0.65);
   }
@@ -89,9 +94,11 @@
   --border-strong: rgba(148, 163, 184, 0.3);
   --text: #e2e8f0;
   --text-soft: #94a3b8;
-  --accent: #6366f1;
-  --accent-strong: #818cf8;
-  --accent-soft: rgba(99, 102, 241, 0.16);
+  --logo: #dee3ec;
+  --logo-strong: #ffffff;
+  --accent: #a9bdd4;
+  --accent-strong: #dee3ec;
+  --accent-soft: rgba(169, 189, 212, 0.16);
   --blue: #60a5fa;
   --jose: #6366f1;
   --luis: #38bdf8;
@@ -106,7 +113,7 @@
   --holiday: #34d399;
   --nm-hi: rgba(255, 255, 255, 0.06);
   --nm-sh: rgba(0, 0, 0, 0.6);
-  --nm-accent: 6px 6px 16px rgba(99, 102, 241, 0.42), -4px -4px 12px var(--nm-hi);
+  --nm-accent: 6px 6px 16px rgba(169, 189, 212, 0.42), -4px -4px 12px var(--nm-hi);
   --shadow: var(--nm-panel);
   --overlay: rgba(2, 6, 23, 0.65);
 }
@@ -197,20 +204,23 @@ header.neu { display: flex; align-items: center; justify-content: space-between;
 .toolbar-progress .progress-track { height: 10px; }
 
 /* ---------- Marca ---------- */
-.brand { display: flex; justify-content: space-between; align-items: center; padding-bottom: 24px; gap: 12px; min-width: 0; width: 100%; }
+.brand { display: flex; justify-content: space-between; align-items: center; padding-bottom: 24px; gap: 16px; min-width: 0; width: 100%; }
 .brand-title {
-  max-width: calc(100% - 108px); min-width: 0; flex-shrink: 1;
+  max-width: calc(100% - 184px); min-width: 0; flex-shrink: 1;
   white-space: nowrap; overflow: hidden;
   display: flex; align-items: baseline; gap: .3em;
   font-size: 22px; font-weight: 800; line-height: 1.2; letter-spacing: -.02em;
 }
 .brand-title .bt-dia { color: var(--text); }
-.brand-title .bt-cero { color: var(--accent); }
+/* "Business" en el color exacto del logotipo (platino oscuro/claro) */
+.brand-title .bt-cero { color: var(--logo); }
 .brand-title .bt-sep { color: var(--border-strong); font-weight: 400; opacity: .8; }
 .brand-title .bt-sub { color: var(--text-soft); font-size: .58em; font-weight: 600; letter-spacing: .04em; }
 .brand-btn {
-  display: block; width: 88px; padding: 0; border: none; background: none; line-height: 0;
-  cursor: pointer; transition: transform .12s ease, opacity .18s ease; flex-shrink: 0;
+  display: block; width: 152px; padding: 0; border: none; background: none; line-height: 0;
+  cursor: pointer; flex-shrink: 0;
+  filter: drop-shadow(0 0 5px rgba(169, 189, 212, 0.35));
+  transition: transform .12s ease, opacity .18s ease, filter .25s ease;
 }
 .brand-btn img { display: block; width: 100%; height: auto; }
 .brand-btn .logo-light { display: block; }
@@ -221,7 +231,7 @@ header.neu { display: flex; align-items: center; justify-content: space-between;
 }
 :root[data-theme="dark"] .brand-btn .logo-dark { display: block; }
 :root[data-theme="dark"] .brand-btn .logo-light { display: none; }
-.brand-btn:hover { transform: scale(1.03); }
+.brand-btn:hover { transform: scale(1.03); filter: drop-shadow(0 0 12px rgba(169, 189, 212, 0.75)); }
 .brand-btn:active { transform: scale(.97); opacity: .85; }
 .brand-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 8px; }
 
@@ -435,6 +445,11 @@ a.neu-btn.nav-btn, a.neu-btn.today-btn { text-decoration: none; display: flex; a
 }
 .save-btn { background: var(--accent); border-color: var(--accent); color: #fff; }
 .save-btn:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+/* En tema oscuro el acento es claro (platino): texto oscuro para contraste */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .save-btn { color: #0f172a; }
+}
+:root[data-theme="dark"] .save-btn { color: #0f172a; }
 
 /* ---------- Bloque genérico (tarjeta con encabezado) ---------- */
 .card {
@@ -597,23 +612,75 @@ a.neu-btn.nav-btn, a.neu-btn.today-btn { text-decoration: none; display: flex; a
 }
 .icon-btn .pxicon svg { width: 15px; height: 15px; }
 
-/* ---------- Responsive ---------- */
-@media (max-width: 560px) {
-  .month-title { font-size: 11px; min-width: 130px; letter-spacing: .04em; padding: 8px 6px; }
-  .day { font-size: 13px; border-radius: 8px; }
-  body { padding: 20px 10px; }
-  .nav-group { gap: 6px; }
-  header.neu { gap: 6px; padding: 10px; }
-  .nav-btn, .today-btn { height: 40px; }
-  .tool-btn { width: 36px; height: 36px; }
-  .brand-btn { width: 72px; }
-  .brand-title { font-size: 17px; max-width: calc(100% - 84px); }
-  .toolbar-progress { flex-basis: 100%; padding-left: 0; }
+/* ---------- Responsive (tablet → móvil → pequeño) ---------- */
+
+/* Tablet (≤ 900px): menos aire, KPIs a 2 columnas */
+@media (max-width: 900px) {
+  .app { max-width: 880px; }
+  body { padding: 24px 14px; }
+  .brand-btn { width: 138px; }
+  .brand-title { font-size: 20px; max-width: calc(100% - 168px); }
   .dash-grid { grid-template-columns: repeat(2, 1fr); }
-  .speed-split { grid-template-columns: 1fr; }
+  .speed-split { grid-template-columns: 1fr 1fr; }
+  .calendar { padding: 14px 14px; }
+  .panel { padding: 16px 16px; }
+  .data-table th, .data-table td { padding: 9px 12px; }
+}
+
+/* Móvil (≤ 560px): compacto, sin desbordes ni scroll horizontal */
+@media (max-width: 560px) {
+  body { padding: 16px 10px; }
+  .app { gap: 12px; }
+  header.neu { gap: 6px; padding: 10px; flex-wrap: wrap; }
+  .nav-group { gap: 6px; }
+  .nav-btn { width: 40px; height: 40px; font-size: 16px; }
+  .today-btn { height: 40px; padding: 0 12px; font-size: 11px; }
+  .month-title { font-size: 11px; min-width: 0; flex: 1 1 auto; letter-spacing: .04em; padding: 8px 6px; }
+  .toolbar { gap: 6px; padding: 8px 10px; }
+  .tool-btn { width: 36px; height: 36px; }
+  .toolbar-progress { flex-basis: 100%; padding-left: 0; }
+  /* Marca: logo sigue grande (112px) y el título se adapta sin cortarse */
+  .brand { gap: 12px; padding-bottom: 10px; }
+  .brand-btn { width: 112px; }
+  .brand-title { font-size: clamp(15px, 4.2vw, 17px); max-width: calc(100% - 136px); white-space: normal; }
+  .brand-title .bt-sub { display: none; }
+  .grid { gap: 6px; }
+  .day { font-size: 13px; border-radius: 8px; min-height: 0; }
+  .dots { gap: 2px; bottom: 6px; }
+  .dot { width: 4px; height: 4px; }
+  .calendar { padding: 12px 12px; }
+  .panel { padding: 14px 12px; gap: 12px; }
   .personal-progress { flex-wrap: wrap; }
   .event .info .t { font-size: 13px; }
-  .upload-zone { flex-wrap: wrap; }
+  .modal { padding: 18px 16px; border-radius: 16px; }
+  .modal-overlay { padding: 12px; align-items: flex-end; }
+  .card-head { padding: 12px 14px; }
+  .data-table { font-size: 12px; }
+  .data-table th, .data-table td { padding: 8px 10px; }
+  .dr-toolbar { padding: 10px 12px; gap: 10px; }
+  .dr-select { min-width: 0; max-width: none; flex: 1 1 100%; }
+  .dr-toolbar .save-btn { flex: 1 1 auto; }
+  .upload-zone { flex-wrap: wrap; padding: 14px; gap: 12px; }
   .upload-cat { min-width: 100%; }
-  .doc-name { max-width: 150px; }
+  .doc-name { max-width: 140px; }
+  .dash-grid { grid-template-columns: repeat(2, 1fr); }
+  .speed-split { grid-template-columns: 1fr; }
+  .stat-value { font-size: 22px; }
+  .toast { max-width: calc(100vw - 32px); }
+}
+
+/* Móvil pequeño (≤ 380px): ajustes finos */
+@media (max-width: 380px) {
+  body { padding: 12px 8px; }
+  .nav-btn { width: 36px; height: 36px; }
+  .today-btn { height: 36px; padding: 0 10px; }
+  .brand-btn { width: 96px; }
+  .brand-title { font-size: 14px; max-width: calc(100% - 116px); }
+  .day { font-size: 12px; }
+  .weekdays span { font-size: 9px; letter-spacing: .04em; }
+  .stat-value { font-size: 20px; }
+  .progress-count { min-width: 40px; }
+  .user-chip { padding: 7px 10px; }
+  .event { padding: 8px 10px; }
+  .upload-text span { font-size: 11.5px; }
 }
