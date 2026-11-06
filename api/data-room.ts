@@ -40,7 +40,7 @@ const CATEGORIES = ['Propuestas', 'Contratos', 'Facturas', 'Informes', 'Otros'];
 const TIMEOUT_MS = 12000;
 const DOWNLOAD_TTL = 3600; // segundos de validez de la URL de descarga
 
-/** MIME permitidos (valor por defecto de cada extensión). */
+/** MIME permitidos (solo documentos de oficina, SIN imágenes). */
 const EXT_MIME: Record<string, string> = {
   pdf: 'application/pdf',
   doc: 'application/msword',
@@ -49,15 +49,14 @@ const EXT_MIME: Record<string, string> = {
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   csv: 'text/csv',
   txt: 'text/plain',
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  webp: 'image/webp',
-  gif: 'image/gif',
   ppt: 'application/vnd.ms-powerpoint',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 };
 const ALLOWED_MIME = new Set(Object.values(EXT_MIME));
+const IMAGE_MIME = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml', 'image/bmp']);
+const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'bmp', 'ico']);
+const QUOTA_BYTES = 2 * 1024 * 1024 * 1024; // 2 GiB
+const WARN_BYTES = Math.floor(QUOTA_BYTES * 0.9); // 1.8 GiB
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -142,13 +141,41 @@ function asSize(v: unknown): number {
   return n;
 }
 
-/** Devuelve el mime validado o null si el tipo no está permitido. */
+/** Devuelve el mime validado o null si el tipo no está permitido.
+ *  Imágenes siempre rechazadas (aunque el navegador las disfrace). */
 function classify(mime: string, filename: string): string | null {
-  const m = String(mime.split(';')[0] ?? '').trim().toLowerCase();
-  if (m) return ALLOWED_MIME.has(m) ? m : null;
-  const dot = filename.lastIndexOf('.');
-  const ext = dot > 0 ? filename.slice(dot + 1).toLowerCase() : '';
+  const m = String((mime ?? '').split(';')[0] ?? '').trim().toLowerCase();
+  if (m) {
+    if (IMAGE_MIME.has(m)) return null;
+    return ALLOWED_MIME.has(m) ? m : null;
+  }
+  const dot = (filename ?? '').lastIndexOf('.');
+  const ext = dot > 0 ? (filename ?? '').slice(dot + 1).toLowerCase() : '';
+  if (IMAGE_EXT.has(ext)) return null;
   return EXT_MIME[ext] ?? null;
+}
+
+async function assertQuota(env: SupaEnv, addBytes: number): Promise<void> {
+  const r = await sfetch(env, '/rest/v1/documents?select=size', { headers: supaHeaders(env) });
+  if (!r.ok) return; // si no se puede leer, el trigger de BD decidirá
+  const rows = (await jsonOf(r)) as Array<{ size?: unknown }>;
+  const used = Array.isArray(rows)
+    ? rows.reduce((acc, row) => acc + (Number(row.size) || 0), 0)
+    : 0;
+  const total = used + addBytes;
+  if (total > QUOTA_BYTES) {
+    throw new HttpError(
+      413,
+      'QUOTA_EXCEEDED',
+      'Cuota de 2 GB completada: borra documentos para subir más'
+    );
+  }
+  if (total > WARN_BYTES) {
+    // Aviso suave: no bloquea, pero el frontend lo muestra y BD hace NOTICE
+    console.warn(
+      '[api/data-room] AVISO: uso de Storage ' + (total / 1073741824).toFixed(2) + ' GB — cerca de 2 GB'
+    );
+  }
 }
 
 /** Nombre de archivo sin rutas, sin caracteres raros, con extensión intacta. */
@@ -263,17 +290,17 @@ async function signUpload(
 ): Promise<{ uploadUrl: string; path: string; filename: string; mime: string; category: string }> {
   const projectId = asUuid(raw.projectId, 'projectId');
   const filename = sanitizeFilename(String(raw.filename || ''));
-  asSize(raw.size);
+  const size = asSize(raw.size);
   const category = asCategory(raw.category);
   const mime = classify(String(raw.mime || ''), filename);
   if (!mime) {
     throw new HttpError(
       415,
       'UNSUPPORTED',
-      'Tipo de archivo no permitido. Usa PDF, Word, Excel, PowerPoint, imágenes o texto.'
+      'Tipo no permitido: solo PDF, CSV, Word, Excel, PowerPoint o texto (sin imágenes)'
     );
   }
-
+  await assertQuota(env, size);
   await ensureBucket(env);
 
   const path = 'projects/' + projectId + '/' + Date.now() + '_' + filename;
@@ -331,6 +358,7 @@ async function confirmUpload(
     }).catch(() => undefined);
     throw new HttpError(413, 'TOO_LARGE', 'El archivo supera los 15 MB permitidos');
   }
+  await assertQuota(env, stored);
 
   const r = await sfetch(env, '/rest/v1/documents', {
     method: 'POST',

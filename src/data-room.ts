@@ -16,7 +16,7 @@ import type { DocumentRow, MinutaRow, Project } from './types';
 const MAX_SIZE = 15 * 1024 * 1024; // 15 MB (misma regla que el servidor)
 const EXT_OK = [
   'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt',
-  'png', 'jpg', 'jpeg', 'webp', 'gif', 'ppt', 'pptx'
+  'ppt', 'pptx'
 ];
 
 /* ---------- Helpers ---------- */
@@ -392,7 +392,7 @@ async function handleFile(file: File): Promise<void> {
 
   const ext = (file.name.split('.').pop() || '').toLowerCase();
   if (!EXT_OK.includes(ext)) {
-    showToast('⚠ Tipo de archivo no permitido (PDF, Word, Excel, imágenes o texto)');
+    showToast('⚠ Tipo no permitido: solo PDF, CSV, Word, Excel, PowerPoint o texto (sin imágenes)');
     return;
   }
   if (file.size > MAX_SIZE) {

@@ -71,6 +71,8 @@ alter table public.tasks add column if not exists fecha date;
 alter table public.tasks add column if not exists estado text not null default 'pendiente';
 
 -- ---------- Documentos (el archivo vive en Storage, aquí la fila) ----------
+-- SOLO documentos de oficina: PDF, Word, Excel, CSV, TXT, PowerPoint.
+-- IMÁGENES PROHIBIDAS (png/jpg/jpeg/webp/gif/svg…) aunque el frontend las bloquee.
 create table if not exists public.documents (
   id uuid primary key default gen_random_uuid(),
   project_id uuid not null references public.projects(id) on delete cascade,
@@ -84,6 +86,107 @@ create table if not exists public.documents (
 );
 alter table public.documents add column if not exists category text not null default 'Otros';
 alter table public.documents add column if not exists uploaded_by uuid references public.profiles(id) on delete set null;
+
+-- Solo mimes de documentos (sin imágenes)
+alter table public.documents drop constraint if exists documents_mime_check;
+alter table public.documents add constraint documents_mime_check check (
+  mime in (
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/csv',
+    'text/plain',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  )
+);
+
+-- ---------- Cuota 2 GB: aviso a 1.8 GB y bloqueo a 2 GB ----------
+-- Fuente de verdad: suma de documents.size (bytes en Storage).
+-- El aviso sale en Supabase → Logs (NOTICE). El bloqueo devuelve error 400/413.
+create or replace function public.storage_usage_bytes()
+returns bigint language sql stable as $$
+  select coalesce(sum(size), 0)::bigint from public.documents;
+$$;
+
+create or replace function public.check_documents_quota()
+returns trigger language plpgsql as $$
+declare
+  total bigint;
+  warn_at constant bigint := 1932735283; -- 1.8 GiB
+  hard_at constant bigint := 2147483648; -- 2 GiB
+begin
+  total := public.storage_usage_bytes() + new.size;
+  if total > hard_at then
+    raise exception 'Cuota excedida: 2 GB completos. Borra documentos para subir más (uso: % MB).',
+      round(total / 1048576.0, 1)
+      using errcode = '45000';
+  end if;
+  if total > warn_at then
+    raise notice 'AVISO: uso de Storage %.1f GB — cerca del límite de 2 GB.', total / 1073741824.0;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists enforce_documents_quota on public.documents;
+create trigger enforce_documents_quota
+  before insert or update of size on public.documents
+  for each row execute function public.check_documents_quota();
+
+create or replace function public.validate_document_file()
+returns trigger language plpgsql as $$
+declare
+  ext text;
+begin
+  ext := lower(regexp_replace(split_part(new.filename, '.', 2), '[^a-z0-9]', '', 'g'));
+  if ext in ('png','jpg','jpeg','webp','gif','svg','bmp','ico') then
+    raise exception 'Imágenes no permitidas: solo PDF, CSV, Word, Excel o PowerPoint' using errcode = '45000';
+  end if;
+  if ext not in ('pdf','doc','docx','xls','xlsx','csv','txt','ppt','pptx') then
+    raise exception 'Extensión no permitida (.%). Usa PDF, CSV, Word, Excel o PowerPoint.', ext using errcode = '45000';
+  end if;
+  if new.size <= 0 or new.size > 15728640 then -- 15 MB
+    raise exception 'Tamaño inválido: máximo 15 MB por archivo' using errcode = '45000';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists validate_document_file_trg on public.documents;
+create trigger validate_document_file_trg
+  before insert or update on public.documents
+  for each row execute function public.validate_document_file();
+
+-- ---------- Storage: bucket privado "documentos" (15 MB, sin imágenes) ----------
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'documentos', 'documentos', false, 15728640,
+  array[
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/csv',
+    'text/plain',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  ]
+)
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+-- Sin políticas públicas: anon/authenticated NO suben ni bajan directo.
+-- Todo el Storage lo hace el servidor con service_role (firmas desde Vercel).
+drop policy if exists "documentos_no_public" on storage.objects;
+
+-- Para consultar el uso en SQL Editor: select public.storage_usage_bytes() as bytes;
+
 
 -- ---------- Minutas (histórico inmutable) ----------
 create table if not exists public.minutas (
