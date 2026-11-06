@@ -453,6 +453,9 @@ a.neu-btn.nav-btn, a.neu-btn.today-btn { text-decoration: none; display: flex; a
   box-shadow: 0 20px 50px rgba(2, 6, 23, .3);
 }
 .modal h3 { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.auth-hint {
+  margin-top: 6px; font-size: 12px; line-height: 1.4; color: var(--text-soft);
+}
 .field label {
   font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
   color: var(--text-soft); display: block; margin-bottom: 6px;

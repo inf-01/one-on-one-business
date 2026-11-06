@@ -99,34 +99,39 @@
     </button>
   </div>
 
-  <!-- Modal: sesión (login / registro con cargo) -->
+  <!-- Modal: sesión (login / registro con rol obligatorio) -->
   <div class="modal-overlay" id="authOverlay">
     <div class="neu modal">
-      <h3 id="authTitle">Inicia sesión</h3>
-      <div class="field">
-        <label for="authName" id="authNameLabel" hidden>Nombre</label>
-        <input id="authName" type="text" placeholder="Tu nombre" maxlength="60" hidden autocomplete="name">
+      <h3 id="authTitle">Crear cuenta</h3>
+      <div class="user-toggle" id="authTabs" role="group" aria-label="Seleccionar modo">
+        <button type="button" class="neu-btn user-chip" data-mode="login">Iniciar sesión</button>
+        <button type="button" class="neu-btn user-chip active" data-mode="register">Crear cuenta</button>
       </div>
-      <div class="field" id="authCargoWrap" hidden>
+      <div class="field">
+        <label for="authName" id="authNameLabel">Nombre completo *</label>
+        <input id="authName" type="text" placeholder="Tu nombre" maxlength="60" autocomplete="name">
+      </div>
+      <div class="field">
+        <label for="authEmail">Correo *</label>
+        <input id="authEmail" type="email" placeholder="tu@correo.com" autocomplete="email">
+      </div>
+      <div class="field" id="authCargoWrap">
         <label for="authCargo">Rol obligatorio * (la IA asigna tareas por rol)</label>
         <select id="authCargo" required>
           <option value="" disabled selected>Selecciona: Técnico Informático / Técnico Contable</option>
           <option value="Tecnologico">Técnico Informático</option>
           <option value="Contable">Técnico Contable</option>
         </select>
+        <p class="auth-hint">Sin rol no podemos asignar tareas con la IA. Elige uno de los dos.</p>
       </div>
       <div class="field">
-        <label for="authEmail">Correo</label>
-        <input id="authEmail" type="email" placeholder="tu@correo.com" autocomplete="email">
-      </div>
-      <div class="field">
-        <label for="authPassword">Contraseña (mín. 8 caracteres)</label>
+        <label for="authPassword">Contraseña * (mín. 8 caracteres)</label>
         <input id="authPassword" type="password" placeholder="••••••••" autocomplete="current-password">
       </div>
       <p class="result-note" id="authNote" hidden></p>
       <div class="modal-actions">
-        <button class="neu-btn" id="authToggleBtn">Crear cuenta</button>
-        <button class="neu-btn save-btn" id="authSubmitBtn">Entrar</button>
+        <button class="neu-btn" id="authToggleBtn">Ya tengo cuenta</button>
+        <button class="neu-btn save-btn" id="authSubmitBtn">Registrarme</button>
       </div>
     </div>
   </div>

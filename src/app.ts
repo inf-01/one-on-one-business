@@ -915,7 +915,10 @@ const authPassword = $<HTMLInputElement>('authPassword');
 const authNote = $<HTMLElement>('authNote');
 const authSubmitBtn = $<HTMLButtonElement>('authSubmitBtn');
 const authToggleBtn = $<HTMLButtonElement>('authToggleBtn');
-let authMode: 'login' | 'register' = 'login';
+const authTabs = $<HTMLElement>('authTabs');
+// Por defecto mostramos "Crear cuenta" (con el 3er campo visible) para
+// que el primer usuario vea Nombre + Correo + Rol obligatorio + Contraseña.
+let authMode: 'login' | 'register' = 'register';
 
 function paintAuthMode(): void {
   const isRegister = authMode === 'register';
@@ -925,15 +928,26 @@ function paintAuthMode(): void {
   authName.hidden = !isRegister;
   authNameLabel.hidden = !isRegister;
   authCargoWrap.hidden = !isRegister;
+  authCargo.required = isRegister;
+  authName.required = isRegister;
+  authTabs.querySelectorAll<HTMLButtonElement>('.user-chip').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === authMode);
+  });
   authNote.hidden = true;
 }
 function showAuth(open: boolean): void {
   authOverlay.classList.toggle('open', open);
   if (open) {
     paintAuthMode();
-    window.setTimeout(() => authEmail.focus(), 50);
+    window.setTimeout(() => (authMode === 'register' ? authName.focus() : authEmail.focus()), 50);
   }
 }
+authTabs.addEventListener('click', e => {
+  const btn = (e.target as HTMLElement | null)?.closest<HTMLButtonElement>('[data-mode]');
+  if (!btn || !btn.dataset.mode) return;
+  authMode = btn.dataset.mode === 'register' ? 'register' : 'login';
+  paintAuthMode();
+});
 authToggleBtn.addEventListener('click', () => {
   authMode = authMode === 'login' ? 'register' : 'login';
   paintAuthMode();
