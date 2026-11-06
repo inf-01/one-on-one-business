@@ -7,7 +7,9 @@
 /** Estados de tarea (Supabase `tasks.estado` + respaldo Sheets columna E). */
 export type Estado = 'pendiente' | 'en progreso' | 'completada';
 
-/** Cargos permitidos (la IA asigna tareas por estos cargos). */
+/** Roles: Técnico Informático (Tecnologico) o Técnico Contable (Contable).
+ *  Los nuevos registros solo usan esos dos (obligatorio para la IA).
+ *  Se mantienen los legacy en el tipo para no romper filas existentes. */
 export type Cargo =
   | 'Tecnologico'
   | 'Contable'

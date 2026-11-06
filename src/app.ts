@@ -958,7 +958,13 @@ async function submitAuth(): Promise<void> {
         authError('Escribe tu nombre');
         return;
       }
-      const data = await Auth.register({ display_name: name, email, password, cargo: authCargo.value });
+      const cargo = authCargo.value;
+      if (cargo !== 'Tecnologico' && cargo !== 'Contable') {
+        authError('Selecciona tu rol: Técnico Informático o Técnico Contable (obligatorio para asignar tareas)');
+        window.setTimeout(() => authCargo.focus(), 50);
+        return;
+      }
+      const data = await Auth.register({ display_name: name, email, password, cargo });
       const payload = data as unknown as { session?: Session | null; needsConfirm?: boolean; message?: string };
       if (payload.session && payload.session.access_token) {
         setSession(payload.session);

@@ -6,7 +6,7 @@ Solo personas registradas pueden ver y modificar sus datos. No hay nombres fijos
 ## 0. Qué cambió (misión Senior Backend)
 
 - Eliminado `José / Luis` hardcodeado de código, UI y base de datos.
-- Registro con `display_name + correo + contraseña + cargo` (`Tecnologico`, `Contable`, `Administracion`, `Ventas`, `Operaciones`, `Otro`).
+- Registro con `display_name + correo + contraseña + rol obligatorio` (`Técnico Informático / Tecnologico` o `Técnico Contable / Contable` — sin default, la IA lo exige para asignar).
 - Todo protegido con Supabase Auth: calendario, dashboard, Data Room, minuta y tareas exigen `Authorization: Bearer <JWT>`.
 - Todas las claves viven **solo en Vercel** (nunca en el navegador): `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`, `GEMINI_API_KEY`.
 - Lógica y estética intactas (neumorfismo, `--jose/--luis` como colores 1–2 de la paleta de miembros, `.modal`, `.user-chip`, `.field`).
@@ -56,15 +56,15 @@ Si falta la clave, la Minuta sigue en **modo líneas** (una tarea por línea), s
 
 ## 3. Primer uso (hoy) — 5 minutos
 
-1. Abre tu dominio de Vercel → verás **Inicia sesión** (sin nombres fijos).
+1. Abre tu dominio de Vercel → verás **Inicia sesión** (sin nombres fijos). En **Inicia sesión** solo correo + contraseña (el rol solo se pide al registrarse).
 2. Pulsa **Crear cuenta** → completa:
    - `Nombre` (visible como responsable, ej. `Ana`)
    - `Correo` y `Contraseña` (mín. 8 caracteres)
-   - `Cargo` (ej. `Tecnologico` o `Contable` — la IA usará esto para asignar)
-3. Repite el registro para tu socio con su propio nombre y cargo.
+   - `Rol obligatorio *` — **Técnico Informático** o **Técnico Contable** (sin default: si no eliges, el registro se bloquea. La IA usará esto para asignar)
+3. Repite el registro para tu socio con su propio nombre y rol.
 4. En **Data Room → Nuevo proyecto**, crea el primer proyecto (ej. `Cliente Norte`). Eres el `owner` (pueden añadirse miembros en `project_members`).
 5. En el calendario usa el desplegable **Todos los proyectos / [tu proyecto]** para filtrar.
-6. Pulsa **Minuta** → pega el texto (ej. *“Ana envía la propuesta el jueves a las 10. El contable revisa el presupuesto mañana.”*) → la IA crea las tareas y las asigna por nombre/cargo.
+6. Pulsa **Minuta** → pega el texto (ej. *“Ana envía la propuesta el jueves a las 10. El técnico contable revisa el presupuesto mañana.”*) → la IA crea las tareas y las asigna por nombre/rol.
 7. Completa tareas con `✓` (solo puedes cambiar **tus** tareas: verás el aviso si intentas tocar las ajenas).
 8. Comparte el link de Vercel con tu socio: ambos entran con su cuenta y ven sus tareas.
 

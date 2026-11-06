@@ -17,7 +17,34 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getProfile, HttpError, listProfiles, requireAuth, sfetch, supaEnv } from './_supabase';
 
-const CARGOS = ['Tecnologico', 'Contable', 'Administracion', 'Ventas', 'Operaciones', 'Otro'];
+const CARGOS = ['Tecnologico', 'Contable'];
+
+// Acepta variantes de texto y devuelve el valor canónico de BD.
+// El registro EXIGE rol: Técnico Informático o Técnico Contable.
+function foldCargo(v: unknown): string {
+  return String(v ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+function normCargo(v: unknown): string {
+  const raw = String(v ?? '').trim();
+  if (CARGOS.includes(raw)) return raw;
+  const s = foldCargo(v);
+  if (s.includes('informatico') || s.includes('informatica') || s === 'tecnologico' || s.includes('tecnologia')) {
+    return 'Tecnologico';
+  }
+  if (s.includes('contable') || s.includes('contabilidad')) {
+    return 'Contable';
+  }
+  throw new HttpError(
+    400,
+    'VALIDATION',
+    'Selecciona tu rol: Técnico Informático o Técnico Contable (obligatorio para asignar tareas)'
+  );
+}
 
 async function jsonOf(r: Response): Promise<unknown> {
   return r.json().catch(() => null);
@@ -34,11 +61,6 @@ function bodyOf(req: VercelRequest): Record<string, unknown> {
   }
   if (!body || typeof body !== 'object') return {};
   return body as Record<string, unknown>;
-}
-
-function normCargo(v: unknown): string {
-  const s = String(v ?? 'Otro').trim();
-  return CARGOS.includes(s) ? s : 'Otro';
 }
 
 function normName(v: unknown): string {

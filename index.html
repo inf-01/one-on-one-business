@@ -108,14 +108,11 @@
         <input id="authName" type="text" placeholder="Tu nombre" maxlength="60" hidden autocomplete="name">
       </div>
       <div class="field" id="authCargoWrap" hidden>
-        <label for="authCargo">Cargo (la IA asigna tareas por cargo)</label>
-        <select id="authCargo">
-          <option value="Tecnologico">Tecnológico</option>
-          <option value="Contable">Contable</option>
-          <option value="Administracion">Administración</option>
-          <option value="Ventas">Ventas</option>
-          <option value="Operaciones">Operaciones</option>
-          <option value="Otro" selected>Otro</option>
+        <label for="authCargo">Rol obligatorio * (la IA asigna tareas por rol)</label>
+        <select id="authCargo" required>
+          <option value="" disabled selected>Selecciona: Técnico Informático / Técnico Contable</option>
+          <option value="Tecnologico">Técnico Informático</option>
+          <option value="Contable">Técnico Contable</option>
         </select>
       </div>
       <div class="field">

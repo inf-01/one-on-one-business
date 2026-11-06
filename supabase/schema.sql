@@ -5,7 +5,9 @@
 -- Es idempotente: puedes ejecutarlo de nuevo sin romper nada.
 -- Solo se ven datos estando registrados: Auth (auth.users) + profiles.
 -- Todo el acceso lo hace el servidor con la service_role (RLS activa,
--- sin políticas públicas). Los cargos alimentan a la IA de la Minuta.
+-- sin políticas públicas). Los roles alimentan a la IA de la Minuta.
+-- Nuevos registros: SOLO Técnico Informático / Tecnologico o Técnico
+-- Contable / Contable (el servidor los exige; ver api/auth.ts).
 -- ============================================================
 
 -- ---------- Perfiles (1 fila por usuario registrado) ----------
@@ -16,7 +18,10 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
--- Cargos permitidos (la IA asigna tareas por estos cargos)
+-- Roles permitidos en BD (la IA asigna tareas por rol).
+-- Los nuevos registros solo pueden ser Tecnologico (Técnico Informático)
+-- o Contable (Técnico Contable). Se mantienen los valores legacy en el
+-- check para no romper filas existentes.
 alter table public.profiles drop constraint if exists profiles_cargo_check;
 alter table public.profiles add constraint profiles_cargo_check
   check (cargo in ('Tecnologico','Contable','Administracion','Ventas','Operaciones','Otro'));
