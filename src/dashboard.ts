@@ -1,16 +1,14 @@
 /* ============================================================
    ONE ON ONE BUSINESS — Dashboard de métricas
    - KPIs: completadas · en progreso · pendientes · total
-   - Tabla ejecutiva de rendimiento por responsable
+   - Tabla ejecutiva de rendimiento por miembro registrado
    - Velocidad de finalización (FechaCreacion → FechaFinalizacion)
    ============================================================ */
 
 import '../css/styles.css'; // Vite bundlea el CSS junto con este módulo
-import { API } from './api';
-import type { Task } from './types';
-
-const USER_JOSE = 'José';
-const USER_LUIS = 'Luis';
+import { API, Auth, getSession, setSession, ApiError } from './api';
+import { memberClass, memberNames } from './members';
+import type { Profile, Task } from './types';
 
 function $<T extends HTMLElement>(id: string): T {
   const el = document.getElementById(id);
@@ -30,6 +28,8 @@ try {
 } catch {
   /* sin almacenamiento disponible */
 }
+
+let profiles: Profile[] = [];
 
 function avgHours(list: Task[]): number | null {
   const done = list.filter(t =>
@@ -56,14 +56,14 @@ function countEstado(list: Task[], estado: Task['estado']): number {
   return list.filter(t => t.estado === estado).length;
 }
 
-/* Fila de la tabla de rendimiento por responsable */
-function userRow(user: string, tasks: Task[]): string {
+/* Fila de la tabla de rendimiento por miembro */
+function userRow(user: string, tasks: Task[], names: string[]): string {
   const mine = tasks.filter(t => t.responsable === user);
   const done = countEstado(mine, 'completada');
   const progress = countEstado(mine, 'en progreso');
   const pending = countEstado(mine, 'pendiente');
   const pct = mine.length ? Math.round((done / mine.length) * 100) : 0;
-  const key = user === USER_LUIS ? 'luis' : 'jose';
+  const key = memberClass(user, names);
   return `
     <tr>
       <td><span class="who"><span class="dotm ${key}"></span>${user}</span></td>
@@ -78,12 +78,37 @@ function userRow(user: string, tasks: Task[]): string {
     </tr>`;
 }
 
+function paintSpeedUsers(tasks: Task[], names: string[]): void {
+  const wrap = $<HTMLElement>('speedUsers');
+  wrap.textContent = '';
+  // Mostrar hasta 4 miembros + resumen
+  names.slice(0, 4).forEach(name => {
+    const item = document.createElement('div');
+    item.className = 'speed-item';
+    const user = document.createElement('span');
+    user.className = 'speed-user ' + memberClass(name, names);
+    user.textContent = name.toUpperCase();
+    const val = document.createElement('span');
+    val.className = 'speed-val';
+    val.textContent = fmtDuration(avgHours(tasks.filter(t => t.responsable === name)));
+    item.append(user, val);
+    wrap.appendChild(item);
+  });
+  if (names.length > 4) {
+    const extra = document.createElement('div');
+    extra.className = 'speed-item';
+    extra.textContent = '+' + (names.length - 4) + ' miembros más';
+    wrap.appendChild(extra);
+  }
+}
+
 function paint(tasks: Task[]): void {
   const total = tasks.length;
   const done = countEstado(tasks, 'completada');
   const progress = countEstado(tasks, 'en progreso');
   const pending = countEstado(tasks, 'pendiente');
   const pctGlobal = total ? Math.round((done / total) * 100) : 0;
+  const names = memberNames(profiles);
 
   $('statDone').textContent = String(done);
   $('statProgress').textContent = String(progress);
@@ -92,26 +117,34 @@ function paint(tasks: Task[]): void {
   $('globalFill').style.width = pctGlobal + '%';
   $('globalCount').textContent = done + '/' + total;
 
-  /* Tabla ejecutiva: José + Luis */
-  $('userRows').innerHTML =
-    userRow(USER_JOSE, tasks) + userRow(USER_LUIS, tasks);
+  /* Tabla ejecutiva: un renglón por miembro registrado */
+  const rows = $('userRows');
+  if (!names.length) {
+    rows.innerHTML = '<tr><td colspan="6" class="empty">Sin usuarios registrados todavía</td></tr>';
+  } else {
+    rows.innerHTML = names.map(n => userRow(n, tasks, names)).join('');
+  }
 
   /* Velocidad de finalización */
   $('speedAvg').textContent = fmtDuration(avgHours(tasks));
-  $('speedJose').textContent = fmtDuration(
-    avgHours(tasks.filter(t => t.responsable === USER_JOSE))
-  );
-  $('speedLuis').textContent = fmtDuration(
-    avgHours(tasks.filter(t => t.responsable === USER_LUIS))
-  );
+  paintSpeedUsers(tasks, names);
 
   $('dashNote').textContent =
     'Última actualización: ' + new Date().toLocaleString('es-ES');
 }
 
 async function load(): Promise<void> {
+  const session = getSession();
+  if (!session || !session.access_token) {
+    $('dashNote').textContent = 'Inicia sesión en el calendario para ver las métricas.';
+    showAuth(true);
+    return;
+  }
   $('dashNote').textContent = 'Sincronizando con la API…';
   try {
+    const listData = await Auth.profiles();
+    const list = (listData as unknown as { profiles?: Profile[] }).profiles;
+    profiles = Array.isArray(list) ? list : [];
     const data = await API.getTasks();
     const tasks: Task[] = Array.isArray(data.tasks) ? data.tasks : [];
     paint(tasks);
@@ -120,10 +153,64 @@ async function load(): Promise<void> {
         'Sin tareas todavía. Crea una desde el calendario y vuelve aquí.';
     }
   } catch (err) {
+    const code = err instanceof ApiError ? err.code : undefined;
+    if (code === 'UNAUTHENTICATED') {
+      setSession(null);
+      $('dashNote').textContent = 'Tu sesión expiró. Inicia sesión en el calendario.';
+      showAuth(true);
+      return;
+    }
     console.error('[dashboard] no se pudo cargar la API:', errMsg(err));
     $('dashNote').textContent = '⚠ No se pudo cargar la API: ' + errMsg(err);
   }
 }
+
+/* ---------- Auth gate de dashboard (misma estética .modal) ---------- */
+const authOverlay = $<HTMLElement>('authOverlay');
+const authEmail = $<HTMLInputElement>('authEmail');
+const authPassword = $<HTMLInputElement>('authPassword');
+const authNote = $<HTMLElement>('authNote');
+const authSubmitBtn = $<HTMLButtonElement>('authSubmitBtn');
+const authGoBtn = $<HTMLButtonElement>('authGoBtn');
+function showAuth(open: boolean): void {
+  authOverlay.classList.toggle('open', open);
+  if (open) window.setTimeout(() => authEmail.focus(), 50);
+}
+authGoBtn.addEventListener('click', () => {
+  location.href = 'index.html';
+});
+async function submitAuth(): Promise<void> {
+  authNote.hidden = true;
+  const email = authEmail.value.trim();
+  const password = authPassword.value;
+  if (!email || !password) {
+    authNote.hidden = false;
+    authNote.textContent = '⚠ Escribe tu correo y contraseña';
+    return;
+  }
+  authSubmitBtn.disabled = true;
+  try {
+    const data = await Auth.login({ email, password });
+    const payload = data as unknown as { session?: import('./types').Session };
+    if (payload.session) {
+      setSession(payload.session);
+      showAuth(false);
+      await load();
+    } else {
+      authNote.hidden = false;
+      authNote.textContent = '⚠ No se pudo iniciar sesión';
+    }
+  } catch (e) {
+    authNote.hidden = false;
+    authNote.textContent = '⚠ ' + errMsg(e);
+  } finally {
+    authSubmitBtn.disabled = false;
+  }
+}
+authSubmitBtn.addEventListener('click', () => void submitAuth());
+authPassword.addEventListener('keydown', e => {
+  if (e.key === 'Enter') void submitAuth();
+});
 
 $('refreshBtn').addEventListener('click', e => {
   e.preventDefault();

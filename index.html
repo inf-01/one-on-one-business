@@ -12,7 +12,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="One on One Business">
 <meta property="og:title" content="One on One Business — Calendario semanal">
-<meta property="og:description" content="Calendario semanal de micro-tareas de José y Luis: progreso, minuta con IA y foco.">
+<meta property="og:description" content="Calendario semanal de micro-tareas del equipo: progreso, minuta con IA y foco.">
 <meta property="og:url" content="https://inf-01.github.io/one-on-one-business/">
 <meta property="og:image" content="https://inf-01.github.io/one-on-one-business/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -20,7 +20,7 @@
 <meta property="og:image:alt" content="One on One Business — logotipo platino">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="One on One Business — Calendario semanal">
-<meta name="twitter:description" content="Calendario semanal de micro-tareas de José y Luis: progreso, minuta con IA y foco.">
+<meta name="twitter:description" content="Calendario semanal de micro-tareas del equipo: progreso, minuta con IA y foco.">
 <meta name="twitter:image" content="https://inf-01.github.io/one-on-one-business/og-image.png">
 <link rel="icon" type="image/png" sizes="512x512" href="favicon.png">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -40,12 +40,16 @@
     <div class="month-title" id="monthTitle"><span class="marquee-track" id="marqueeTrack"></span></div>
     <div class="nav-group">
       <button class="neu-btn tool-btn" id="themeBtn" aria-label="Cambiar tema" title="Cambiar tema"><span class="pxicon" id="themeIcon"></span></button>
+      <button class="neu-btn today-btn" id="logoutBtn" title="Cerrar sesión">Salir</button>
       <button class="neu-btn nav-btn" id="nextBtn" aria-label="Semana siguiente">›</button>
     </div>
   </header>
 
-  <!-- Barra de herramientas: iconos + PROGRESO GENERAL (José + Luis) -->
+  <!-- Barra de herramientas: iconos + PROGRESO GENERAL (equipo) + proyecto -->
   <div class="neu toolbar">
+    <select id="projectFilter" class="dr-select" aria-label="Filtrar por proyecto" style="max-width:190px;flex:0 1 190px;">
+      <option value="">Todos los proyectos</option>
+    </select>
     <button class="neu-btn tool-btn" id="alarmBtn" aria-label="Activar alarmas" title="Activar alarmas de tareas"><span class="pxicon" id="alarmIcon"></span></button>
     <button class="neu-btn tool-btn" id="minutaBtn" aria-label="Minuta rápida" title="Pegar minuta y que la IA cree las tareas"><span class="pxicon" id="minutaIcon"></span></button>
     <button class="neu-btn tool-btn" id="exportBtn" aria-label="Exportar datos" title="Exportar respaldo"><span class="pxicon" id="exportIcon"></span></button>
@@ -76,12 +80,10 @@
 
     <div class="personal-block">
       <div class="user-toggle" id="userToggle" role="group" aria-label="Seleccionar usuario">
-        <button type="button" class="neu-btn user-chip active" data-user="José">JOSÉ</button>
-        <button type="button" class="neu-btn user-chip" data-user="Luis">LUIS</button>
       </div>
       <div class="neu-inset personal-progress">
-        <span class="progress-label" id="personalLabel">Progreso José</span>
-        <div class="progress-track"><div class="progress-fill jose" id="personalFill"></div></div>
+        <span class="progress-label" id="personalLabel">Progreso</span>
+        <div class="progress-track"><div class="progress-fill" id="personalFill"></div></div>
         <span class="progress-count" id="personalCount">0/0</span>
       </div>
     </div>
@@ -95,6 +97,41 @@
       <img class="logo-dark" src="logo-dark.png" alt="One on One Business">
       <img class="logo-light" src="logo-light.png" alt="One on One Business">
     </button>
+  </div>
+
+  <!-- Modal: sesión (login / registro con cargo) -->
+  <div class="modal-overlay" id="authOverlay">
+    <div class="neu modal">
+      <h3 id="authTitle">Inicia sesión</h3>
+      <div class="field">
+        <label for="authName" id="authNameLabel" hidden>Nombre</label>
+        <input id="authName" type="text" placeholder="Tu nombre" maxlength="60" hidden autocomplete="name">
+      </div>
+      <div class="field" id="authCargoWrap" hidden>
+        <label for="authCargo">Cargo (la IA asigna tareas por cargo)</label>
+        <select id="authCargo">
+          <option value="Tecnologico">Tecnológico</option>
+          <option value="Contable">Contable</option>
+          <option value="Administracion">Administración</option>
+          <option value="Ventas">Ventas</option>
+          <option value="Operaciones">Operaciones</option>
+          <option value="Otro" selected>Otro</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="authEmail">Correo</label>
+        <input id="authEmail" type="email" placeholder="tu@correo.com" autocomplete="email">
+      </div>
+      <div class="field">
+        <label for="authPassword">Contraseña (mín. 8 caracteres)</label>
+        <input id="authPassword" type="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <p class="result-note" id="authNote" hidden></p>
+      <div class="modal-actions">
+        <button class="neu-btn" id="authToggleBtn">Crear cuenta</button>
+        <button class="neu-btn save-btn" id="authSubmitBtn">Entrar</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -113,8 +150,6 @@
     <div class="field">
       <label>Responsable</label>
       <div class="user-toggle" id="evUserToggle">
-        <button type="button" class="neu-btn user-chip active" data-user="José">JOSÉ</button>
-        <button type="button" class="neu-btn user-chip" data-user="Luis">LUIS</button>
       </div>
     </div>
     <div class="modal-actions">
@@ -133,13 +168,11 @@
     <div id="minutaForm">
       <div class="field">
         <label for="minutaText">Pega el texto de la minuta (la IA lo convierte en tareas)</label>
-        <textarea id="minutaText" placeholder="Reunión del lunes: José envía la propuesta al cliente el jueves a las 10.&#10;Luis revisa el presupuesto mañana.&#10;Recordar llamar al proveedor."></textarea>
+        <textarea id="minutaText" placeholder="Reunión del lunes: Ana envía la propuesta al cliente el jueves a las 10.&#10;El contable revisa el presupuesto mañana.&#10;Recordar llamar al proveedor."></textarea>
       </div>
       <div class="field">
-        <label>Responsable</label>
+        <label>Responsable por defecto</label>
         <div class="user-toggle" id="minutaUserToggle">
-          <button type="button" class="neu-btn user-chip active" data-user="José">JOSÉ</button>
-          <button type="button" class="neu-btn user-chip" data-user="Luis">LUIS</button>
         </div>
       </div>
       <div class="modal-actions">

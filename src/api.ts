@@ -1,16 +1,17 @@
 /* ============================================================
    ONE ON ONE BUSINESS — Cliente de API tipado (index + dashboard)
-   Todo pasa por /api/sync (Serverless Function de Vercel),
-   que habla con Google Apps Script de forma segura.
-   La Minuta usa /api/minuta (otra Serverless Function) que
-   habla con Gemini: la clave de IA vive solo en Vercel.
+   Todo pasa por /api/* (Serverless Functions de Vercel).
+   Las claves (Supabase + Gemini + Apps Script) viven solo en Vercel;
+   el navegador solo guarda el JWT en sessionStorage.
    ============================================================ */
 
 import type {
   ApiOk,
+  AuthResponse,
   DataRoomResponse,
   MinutaRequest,
   MinutaResponse,
+  Session,
   SyncResponse,
   TaskChanges,
   TaskRaw
@@ -29,11 +30,52 @@ export class ApiError extends Error {
 
 const BASE = '/api/sync';
 const DR_BASE = '/api/data-room';
+const AUTH_BASE = '/api/auth';
+
+/* ---------- Sesión (solo sessionStorage: nada de claves) ---------- */
+const SESSION_KEY = 'neu_session';
+
+export function getSession(): Session | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) {
+      const legacy = localStorage.getItem(SESSION_KEY);
+      if (legacy) {
+        sessionStorage.setItem(SESSION_KEY, legacy);
+        localStorage.removeItem(SESSION_KEY);
+        return JSON.parse(legacy) as Session;
+      }
+      return null;
+    }
+    return JSON.parse(raw) as Session;
+  } catch {
+    return null;
+  }
+}
+export function setSession(s: Session | null): void {
+  try {
+    if (s) sessionStorage.setItem(SESSION_KEY, JSON.stringify(s));
+    else {
+      sessionStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(SESSION_KEY);
+    }
+  } catch {
+    /* sin almacenamiento */
+  }
+}
+export function authHeaders(): Record<string, string> {
+  const s = getSession();
+  return s && s.access_token ? { Authorization: 'Bearer ' + s.access_token } : {};
+}
 
 async function request<T extends ApiOk>(url: string, options?: RequestInit): Promise<T> {
+  const withAuth: RequestInit = {
+    ...options,
+    headers: { ...authHeaders(), ...((options as { headers?: Record<string, string> } | undefined)?.headers ?? {}) }
+  };
   let res: Response;
   try {
-    res = await fetch(url, options ?? {});
+    res = await fetch(url, withAuth);
   } catch (e) {
     const name = e instanceof Error ? e.name : '';
     if (name === 'TimeoutError' || name === 'AbortError') {
@@ -73,8 +115,9 @@ function timeoutSignal(ms: number): AbortSignal | undefined {
 
 export const API = {
   /* Lectura */
-  getTasks(): Promise<SyncResponse> {
-    return request<SyncResponse>(BASE + '?action=getTasks');
+  getTasks(projectId?: string | null): Promise<SyncResponse> {
+    const qs = projectId ? '?action=getTasks&projectId=' + encodeURIComponent(projectId) : '?action=getTasks';
+    return request<SyncResponse>(BASE + qs);
   },
 
   /* Escritura */
@@ -100,8 +143,36 @@ export const API = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-      signal: timeoutSignal(60000) // extracción + Sheets + histórico
+      signal: timeoutSignal(60000)
+      // extracción + Supabase + histórico
     });
+  }
+};
+
+/* ============================================================
+   Auth (Supabase Auth vía servidor): register / login / me / profiles
+   El navegador NUNCA ve claves; solo guarda el JWT.
+   ============================================================ */
+export const Auth = {
+  register(p: { display_name: string; email: string; password: string; cargo: string }): Promise<AuthResponse> {
+    return request<AuthResponse>(AUTH_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'register', ...p })
+    });
+  },
+  login(p: { email: string; password: string }): Promise<AuthResponse> {
+    return request<AuthResponse>(AUTH_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'login', ...p })
+    });
+  },
+  me(): Promise<AuthResponse> {
+    return request<AuthResponse>(AUTH_BASE + '?action=me');
+  },
+  profiles(): Promise<AuthResponse> {
+    return request<AuthResponse>(AUTH_BASE + '?action=profiles');
   }
 };
 
@@ -131,8 +202,8 @@ export const DataRoom = {
     return drGet('?action=documents&projectId=' + encodeURIComponent(projectId));
   },
 
-  minutas(): Promise<DataRoomResponse> {
-    return drGet('?action=minutas');
+  minutas(projectId?: string): Promise<DataRoomResponse> {
+    return drGet(projectId ? '?action=minutas&projectId=' + encodeURIComponent(projectId) : '?action=minutas');
   },
 
   createProject(name: string): Promise<DataRoomResponse> {

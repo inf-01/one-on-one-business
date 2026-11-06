@@ -47,7 +47,7 @@ function makeReq(method: string, body?: unknown, query?: Record<string, string>)
     method,
     body,
     query: query ?? {},
-    headers: {},
+    headers: { authorization: 'Bearer test-token' },
     url: '/api/data-room'
   } as unknown as Req;
 }
@@ -57,11 +57,12 @@ function bodyAs(out: TestOut): Record<string, unknown> {
   return out.body as Record<string, unknown>;
 }
 
-/* ---------- Simulación de red: PostgREST + Storage ---------- */
+/* ---------- Simulación de red: PostgREST + Storage + Auth ---------- */
 const realFetch = globalThis.fetch;
 const BASE = 'https://unit.supabase.co';
 const UUID = '550e8400-e29b-41d4-a716-446655440000';
 const DOC_ID = '11111111-2222-3333-4444-555555555555';
+const USER_ID = UUID; // el dueño del proyecto demo en los tests
 
 let lastUrl = '';
 let bucketList: unknown[] = [];
@@ -98,6 +99,11 @@ function installFetchMock(): void {
     const url = String(input);
     lastUrl = url;
 
+    /* ----- Auth ----- */
+    if (url.includes('/auth/v1/user')) {
+      return jsonRes(200, { id: USER_ID, email: 'owner@test.local' });
+    }
+
     /* ----- PostgREST (tablas) ----- */
     if (url.includes('/rest/v1/')) {
       const rest = url.split('/rest/v1/')[1] ?? '';
@@ -110,9 +116,17 @@ function installFetchMock(): void {
             return jsonRes(409, { code: '23505', message: 'duplicate key value' });
           }
           const b = parseBody(init);
-          return jsonRes(201, [{ id: UUID, name: b?.name, created_at: '2026-11-05T00:00:00Z' }]);
+          return jsonRes(201, [{ id: UUID, name: b?.name, owner_id: b?.owner_id ?? USER_ID, created_at: '2026-11-05T00:00:00Z' }]);
         }
-        return jsonRes(200, [{ id: UUID, name: 'Proyecto Demo', created_at: '2026-11-01T00:00:00Z' }]);
+        // select=id&owner_id (accessible) y select=* (listado)
+        if (url.includes('owner_id=eq.')) {
+          return jsonRes(200, [{ id: UUID, owner_id: USER_ID }]);
+        }
+        return jsonRes(200, [{ id: UUID, name: 'Proyecto Demo', owner_id: USER_ID, created_at: '2026-11-01T00:00:00Z' }]);
+      }
+
+      if (table === 'project_members') {
+        return jsonRes(200, []);
       }
 
       if (table === 'documents') {
@@ -193,6 +207,7 @@ function installFetchMock(): void {
 
 beforeEach(() => {
   process.env.SUPABASE_URL = BASE;
+  process.env.SUPABASE_ANON_KEY = 'unit-anon-key';
   process.env.SUPABASE_SERVICE_KEY = 'unit-service-key';
   lastUrl = '';
   bucketList = [{ name: 'documentos' }];
@@ -213,6 +228,7 @@ beforeEach(() => {
 afterEach(() => {
   globalThis.fetch = realFetch;
   delete process.env.SUPABASE_URL;
+  delete process.env.SUPABASE_ANON_KEY;
   delete process.env.SUPABASE_SERVICE_KEY;
 });
 

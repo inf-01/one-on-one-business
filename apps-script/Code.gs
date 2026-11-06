@@ -18,8 +18,8 @@
  *   A ID               → identificador único (ej. T-UUID)
  *   B Fecha            → fecha de la tarea, formato YYYY-MM-DD
  *   C Titulo           → texto de la tarea
- *   D Responsable      → "José" o "Luis"
- *   E Estado           → "pendiente" o "completada"
+ *   D Responsable      → display_name de un perfil registrado en Supabase
+ *   E Estado           → "pendiente", "en progreso" o "completada"
  *   F FechaCreacion    → ISO 8601 (ej. 2026-11-01T14:30:00.000Z)
  *   G FechaFinalizacion→ ISO 8601, se pone sola al completar; se borra al reabrir
  *   H Hora             → opcional, HH:MM (para las alarmas de 5 min)
@@ -34,6 +34,9 @@ var HEADERS = ['ID', 'Fecha', 'Titulo', 'Responsable', 'Estado', 'FechaCreacion'
 
 function getSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    throw new Error('Script no vinculado a la hoja: créalo desde Extensiones > Apps Script de tu hoja de cálculo.');
+  }
   var sh = ss.getSheetByName(SHEET_NAME);
   if (!sh) sh = ss.insertSheet(SHEET_NAME);
   if (sh.getLastRow() === 0) {
@@ -50,10 +53,17 @@ function json_(obj) {
 }
 
 function ok_(extra) { return json_(Object.assign({ ok: true }, extra || {})); }
-function err_(msg) { return json_({ ok: false, error: msg }); }
+function err_(msg) { return json_({ ok: false, error: String(msg) }); }
 
-function authorized_(e) {
-  return !!(e && e.parameter && String(e.parameter.key) === String(API_KEY));
+function getParam_(e, name) {
+  if (!e || !e.parameter) return '';
+  var v = e.parameter[name];
+  if (v === undefined || v === null) return '';
+  return String(v);
+}
+
+function errMsg_(err) {
+  return 'Error: ' + String(err && err.message ? err.message : err);
 }
 
 function rowToTask_(r) {
@@ -61,7 +71,7 @@ function rowToTask_(r) {
     id: String(r[0] || ''),
     fecha: String(r[1] || ''),
     titulo: String(r[2] || ''),
-    responsable: String(r[3] || 'José'),
+    responsable: String(r[3] || ''),
     estado: String(r[4] || 'pendiente'),
     fechaCreacion: String(r[5] || ''),
     fechaFinalizacion: String(r[6] || ''),
@@ -99,51 +109,60 @@ function newId_() {
 
 function sanitize_(raw) {
   raw = raw || {};
-  var responsable = String(raw.responsable || 'José');
-  if (responsable !== 'Luis') responsable = 'José';
+  var responsable = String(raw.responsable || '').trim().slice(0, 60);
+  if (!responsable) responsable = 'Usuario';
   return {
     id: raw.id || newId_(),
     fecha: String(raw.fecha || ''),
     titulo: String(raw.titulo || '').slice(0, 120),
     responsable: responsable,
-    estado: raw.estado === 'completada' ? 'completada' : 'pendiente',
+    estado: (raw.estado === 'completada' || raw.estado === 'en progreso') ? raw.estado : 'pendiente',
     fechaCreacion: raw.fechaCreacion || new Date().toISOString(),
     fechaFinalizacion: raw.fechaFinalizacion || '',
     hora: String(raw.hora || '')
   };
 }
 
-/* ---------- LECTURA (GET) ---------- */
+/* ---------- LECTURA (GET) ----------
+   La clave llega en la URL: ?key=SECRETO&action=getTasks */
 
 function doGet(e) {
-  if (!authorized_(e)) return err_('No autorizado');
-  var action = (e.parameter.action || 'getTasks');
-  if (action === 'getTasks') {
-    return ok_({ tasks: readAll_() });
+  try {
+    if (getParam_(e, 'key') !== String(API_KEY)) return err_('No autorizado');
+    var action = getParam_(e, 'action') || 'getTasks';
+    if (action === 'getTasks') return ok_({ tasks: readAll_() });
+    return err_('Acción no válida: ' + action);
+  } catch (err) {
+    return err_(errMsg_(err)); // siempre JSON, nunca una página de error de Google
   }
-  return err_('Acción no válida: ' + action);
 }
 
-/* ---------- ESCRITURA (POST) ---------- */
+/* ---------- ESCRITURA (POST) ----------
+   La clave llega DENTRO del JSON que envía Vercel (body.key)
+   o, de forma redundante, en la URL (?key=SECRETO). */
 
 function doPost(e) {
-  if (!authorized_(e)) return err_('No autorizado');
-
-  var body;
+  var lock = null;
   try {
-    body = JSON.parse(e.postData.contents);
-  } catch (err) {
-    return err_('JSON inválido');
-  }
+    var body;
+    try {
+      body = JSON.parse((e && e.postData && e.postData.contents) || '');
+    } catch (parseErr) {
+      return err_('JSON inválido');
+    }
 
-  var lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(20000); // evita escrituras simultáneas
-  } catch (err) {
-    return err_('La hoja está ocupada, intenta de nuevo');
-  }
+    var keyOk = (body && body.key !== undefined && String(body.key) === String(API_KEY)) ||
+                getParam_(e, 'key') === String(API_KEY);
+    if (!keyOk) return err_('No autorizado');
 
-  try {
+    lock = LockService.getScriptLock();
+    try {
+      lock.waitLock(20000); // evita escrituras simultáneas
+    } catch (lockErr) {
+      lock = null;
+      return err_('La hoja está ocupada, intenta de nuevo');
+    }
+
     var sh = getSheet_();
     var action = body.action;
 
@@ -173,9 +192,9 @@ function doPost(e) {
 
       if (typeof c.titulo === 'string' && c.titulo.trim()) current.titulo = c.titulo.slice(0, 120);
       if (typeof c.fecha === 'string' && c.fecha) current.fecha = c.fecha;
-      if (typeof c.responsable === 'string' && c.responsable) current.responsable = c.responsable === 'Luis' ? 'Luis' : 'José';
+      if (typeof c.responsable === 'string' && c.responsable) current.responsable = String(c.responsable).trim().slice(0, 60);
       if (typeof c.hora === 'string') current.hora = c.hora;
-      if (typeof c.estado === 'string' && (c.estado === 'pendiente' || c.estado === 'completada')) {
+      if (typeof c.estado === 'string' && (c.estado === 'pendiente' || c.estado === 'en progreso' || c.estado === 'completada')) {
         current.estado = c.estado;
         // La fecha de finalización se gestiona sola para la métrica de velocidad
         if (c.estado === 'completada') {
@@ -197,7 +216,9 @@ function doPost(e) {
     }
 
     return err_('Acción no válida: ' + action);
+  } catch (err) {
+    return err_(errMsg_(err)); // siempre JSON, nunca una página de error de Google
   } finally {
-    lock.releaseLock();
+    if (lock) { try { lock.releaseLock(); } catch (e2) {} }
   }
 }

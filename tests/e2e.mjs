@@ -32,17 +32,23 @@ const isoNow = new Date().toISOString();
 
 let tasks = [
   {
-    id: 'T-1', fecha: todayKey, titulo: 'Revisar propuesta', responsable: 'José',
+    id: 'T-1', fecha: todayKey, titulo: 'Revisar propuesta', responsable: 'Ana',
     estado: 'pendiente', fechaCreacion: isoNow, fechaFinalizacion: '', hora: '10:00'
   },
   {
-    id: 'T-2', fecha: todayKey, titulo: 'Llamar al proveedor', responsable: 'Luis',
+    id: 'T-2', fecha: todayKey, titulo: 'Llamar al proveedor', responsable: 'Bruno',
     estado: 'pendiente', fechaCreacion: isoNow, fechaFinalizacion: '', hora: ''
   }
 ];
 let seq = 2;
 let noKeyMode = false; // alterna el modo "sin IA" para el test de fallback
 let lastIdem = ''; // idempotencyKey recibida por /api/minuta
+
+const E2E_PROFILES = [
+  { id: 'U-ANA', display_name: 'Ana', cargo: 'Tecnologico', created_at: '2026-11-01T00:00:00Z' },
+  { id: 'U-BRUNO', display_name: 'Bruno', cargo: 'Contable', created_at: '2026-11-01T00:00:00Z' }
+];
+const E2E_SESSION = { id: 'U-ANA', email: 'ana@test.local', display_name: 'Ana', cargo: 'Tecnologico' };
 
 /* ---------- Estado del Data Room en memoria (espejo de Supabase) ---------- */
 let drSeq = 0;
@@ -64,9 +70,9 @@ const DR_MAX = 15 * 1024 * 1024;
 const DR_EXT = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt', 'png', 'jpg', 'jpeg', 'webp', 'gif', 'ppt', 'pptx'];
 
 const MINUTA_TASKS = [
-  { titulo: 'Enviar propuesta al cliente', fecha: todayKey, hora: '10:00', responsable: 'José' },
-  { titulo: 'Revisar presupuesto', fecha: tomorrowKey, hora: '', responsable: 'Luis' },
-  { titulo: 'Llamar al proveedor', fecha: todayKey, hora: '', responsable: 'José' }
+  { titulo: 'Enviar propuesta al cliente', fecha: todayKey, hora: '10:00', responsable: 'Ana' },
+  { titulo: 'Revisar presupuesto', fecha: tomorrowKey, hora: '', responsable: 'Bruno' },
+  { titulo: 'Llamar al proveedor', fecha: todayKey, hora: '', responsable: 'Ana' }
 ];
 
 const MIME = {
@@ -94,6 +100,38 @@ async function apiHandler(req, res, pathname) {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify(obj));
   };
+
+  if (pathname === '/api/auth') {
+    const url = new URL(req.url || '/', 'http://x');
+    const action = url.searchParams.get('action') || '';
+    if (req.method === 'GET') {
+      if (action === 'me') {
+        send({ ok: true, profile: E2E_SESSION, session: { user_id: 'U-ANA', email: 'ana@test.local', display_name: 'Ana', cargo: 'Tecnologico' } });
+        return true;
+      }
+      if (action === 'profiles') {
+        send({ ok: true, profiles: E2E_PROFILES });
+        return true;
+      }
+      send({ ok: true, profiles: E2E_PROFILES });
+      return true;
+    }
+    if (req.method === 'POST') {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      if (body.action === 'register' || body.action === 'login') {
+        send({
+          ok: true,
+          profile: E2E_SESSION,
+          session: { access_token: 'e2e-token', refresh_token: 'refresh', user_id: 'U-ANA', email: 'ana@test.local', display_name: 'Ana', cargo: 'Tecnologico' }
+        });
+        return true;
+      }
+      send({ ok: false, error: 'Acción no válida' });
+      return true;
+    }
+    send({ ok: false, error: 'Método no permitido' });
+    return true;
+  }
 
   if (pathname === '/api/sync' && req.method === 'GET') {
     send({ ok: true, tasks });
@@ -335,7 +373,21 @@ async function main() {
   });
 
   const sink = { base, console: [] };
+  async function injectSession(p) {
+    const sessionJson = JSON.stringify({
+      access_token: 'e2e-token',
+      refresh_token: 'refresh',
+      user_id: 'U-ANA',
+      email: 'ana@test.local',
+      display_name: 'Ana',
+      cargo: 'Tecnologico'
+    });
+    await p.evaluateOnNewDocument(s => {
+      try { sessionStorage.setItem('neu_session', s); } catch {}
+    }, sessionJson);
+  }
   const page = await browser.newPage();
+  await injectSession(page);
   await page.setViewport({ width: 1280, height: 900 });
   watchPage(page, sink);
 
@@ -362,8 +414,8 @@ async function main() {
         { timeout: 5000 }
       );
       const bars = await page.$$eval('.event .bar', els => els.map(e => e.className));
-      assert.ok(bars.some(c => c.includes('jose')), 'barra de José');
-      assert.ok(bars.some(c => c.includes('luis')), 'barra de Luis');
+      assert.ok(bars.some(c => c.includes('jose')), 'barra del miembro 1');
+      assert.ok(bars.some(c => c.includes('luis')), 'barra del miembro 2');
       const count = await page.$eval('#generalCount', el => el.textContent || '');
       assert.match(count, /\d+\/\d+/);
     });
@@ -416,11 +468,11 @@ async function main() {
       assert.ok(!tasks.some(x => x.titulo === 'Tarea creada por E2E'));
     });
 
-    await t('el selector JOSÉ/LUIS cambia el progreso personal', async () => {
-      await page.click('#userToggle .user-chip[data-user="Luis"]');
+    await t('el selector de miembro cambia el progreso personal', async () => {
+      await page.click('#userToggle .user-chip[data-user="Bruno"]');
       const label = await page.$eval('#personalLabel', el => el.textContent || '');
-      assert.equal(label, 'Progreso Luis');
-      await page.click('#userToggle .user-chip[data-user="José"]');
+      assert.equal(label, 'Progreso Bruno');
+      await page.click('#userToggle .user-chip[data-user="Ana"]');
     });
 
     await t('la Minuta con IA crea 3 tareas en el servidor y muestra el resultado', async () => {
@@ -530,6 +582,7 @@ async function main() {
 
     await t('el dashboard carga métricas sin errores', async () => {
       const dash = await browser.newPage();
+      await injectSession(dash);
       const sinkDash = { base, console: [] };
       watchPage(dash, sinkDash);
       await dash.setViewport({ width: 1280, height: 900 });
@@ -544,8 +597,8 @@ async function main() {
       const progress = await dash.$eval('#statProgress', el => el.textContent || '');
       assert.match(progress, /^\d+$/);
       const rows = await dash.$eval('#userRows', el => el.textContent || '');
-      assert.match(rows, /José/, 'fila de José en la tabla');
-      assert.match(rows, /Luis/, 'fila de Luis en la tabla');
+      assert.match(rows, /Ana/, 'fila de Ana en la tabla');
+      assert.match(rows, /Bruno/, 'fila de Bruno en la tabla');
       assert.equal(sinkDash.console.length, 0, sinkDash.console.join(' | '));
       await dash.close();
     });
@@ -553,6 +606,7 @@ async function main() {
     /* ---------- Data Room ---------- */
     const drSink = { base, console: [] };
     const dr = await browser.newPage();
+    await injectSession(dr);
     watchPage(dr, drSink);
     await dr.setViewport({ width: 1280, height: 900 });
     dr.on('dialog', d => d.accept()); // confirm() de «Eliminar»

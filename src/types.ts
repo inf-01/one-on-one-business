@@ -4,22 +4,42 @@
    así que Vercel nunca los ejecuta como código.
    ============================================================ */
 
-/** Estados de tarea en la hoja "Tareas" (columna E). */
+/** Estados de tarea (Supabase `tasks.estado` + respaldo Sheets columna E). */
 export type Estado = 'pendiente' | 'en progreso' | 'completada';
 
-/** Las dos personas del proyecto (definen el color de la barra). */
-export type Responsable = 'José' | 'Luis';
+/** Cargos permitidos (la IA asigna tareas por estos cargos). */
+export type Cargo =
+  | 'Tecnologico'
+  | 'Contable'
+  | 'Administracion'
+  | 'Ventas'
+  | 'Operaciones'
+  | 'Otro';
+
+/** Perfil de usuario registrado (fila en `public.profiles`). */
+export interface Profile {
+  id: string;
+  display_name: string;
+  cargo: Cargo | string;
+  created_at: string;
+}
+
+/** Responsable = display_name de un perfil registrado (NO hay nombres fijos). */
+export type Responsable = string;
 
 /** Tarea normalizada tal como la usa la UI. */
 export interface Task {
   id: string | null;
   fecha: string; // YYYY-MM-DD
   titulo: string;
-  responsable: Responsable;
+  responsable: Responsable; // display_name del perfil asignado
   estado: Estado;
   fechaCreacion: string; // ISO 8601
-  fechaFinalizacion: string; // ISO 8601 o '' (la pone el script al completar)
+  fechaFinalizacion: string; // ISO 8601 o '' (la pone el servidor al completar)
   hora: string; // HH:MM o ''
+  project_id?: string | null;
+  assigned_to?: string | null; // uuid de profiles.id
+  created_by?: string | null;
 }
 
 /** Crudo que llega de la API, de un JSON importado o de la IA. */
@@ -32,6 +52,9 @@ export interface TaskRaw {
   fechaCreacion?: string;
   fechaFinalizacion?: string;
   hora?: string;
+  project_id?: string | null;
+  assigned_to?: string | null;
+  created_by?: string | null;
 }
 
 /** Cambios permitidos vía action=update. */
@@ -44,22 +67,41 @@ export interface ApiOk {
   code?: string;
 }
 
-/** Respuestas de /api/sync (Google Sheets vía Apps Script). */
+/** Sesión de frontend (solo dentro de sessionStorage, nunca la service_key). */
+export interface Session {
+  access_token: string;
+  refresh_token?: string;
+  user_id: string;
+  email: string;
+  display_name: string;
+  cargo: string;
+}
+
+/** Petición/respuesta de /api/auth. */
+export interface AuthResponse extends ApiOk {
+  session?: Session;
+  profile?: Profile;
+  profiles?: Profile[];
+}
+
+/** Respuestas de /api/sync (Supabase `tasks` como fuente primaria). */
 export interface SyncResponse extends ApiOk {
   tasks?: Task[];
   task?: Task;
 }
 
-/** Petición a /api/minuta. */
+/** Petición a /api/minuta. `responsable`/`project_id` son opcionales: el
+ *  servidor asigna por cargo desde los perfiles registrados. */
 export interface MinutaRequest {
   text: string;
-  responsable: Responsable;
+  responsable?: string; // display_name, opcional (default = usuario actual)
   fecha: string; // fecha por defecto de las tareas
   hoy: string; // "hoy" para interpretar fechas relativas
+  project_id?: string | null;
   idempotencyKey?: string; // evita duplicados si se reintenta la misma minuta
 }
 
-/** Respuesta de /api/minuta: las tareas YA creadas en la hoja (reparto en servidor). */
+/** Respuesta de /api/minuta: las tareas YA creadas en el servidor. */
 export interface MinutaResponse extends ApiOk {
   tasks?: Task[];
   acuerdos?: string[];
@@ -70,10 +112,11 @@ export interface MinutaResponse extends ApiOk {
 
 /* ---------- Data Room (/api/data-room · Supabase) ---------- */
 
-/** Proyecto del Data Room (agrupa documentos y minutas). */
+/** Proyecto del Data Room (agrupa documentos, minutas y tareas). */
 export interface Project {
   id: string;
   name: string;
+  owner_id?: string | null;
   created_at: string;
 }
 

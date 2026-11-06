@@ -105,16 +105,7 @@
         <span class="stat-value" id="speedAvg">—</span>
         <span class="progress-label">Tiempo promedio por tarea completada</span>
       </div>
-      <div class="speed-split">
-        <div class="speed-item">
-          <span class="speed-user jose">JOSÉ</span>
-          <span class="speed-val" id="speedJose">—</span>
-        </div>
-        <div class="speed-item">
-          <span class="speed-user luis">LUIS</span>
-          <span class="speed-val" id="speedLuis">—</span>
-        </div>
-      </div>
+      <div class="speed-split" id="speedUsers"></div>
     </div>
 
     <div class="dash-note" id="dashNote">Cargando datos…</div>
@@ -131,6 +122,26 @@
   </div>
 
   <script type="module" src="/src/dashboard.ts"></script>
+
+  <!-- Modal: sesión (solo registrados) -->
+  <div class="modal-overlay" id="authOverlay">
+    <div class="neu modal">
+      <h3>Inicia sesión</h3>
+      <div class="field">
+        <label for="authEmail">Correo</label>
+        <input id="authEmail" type="email" placeholder="tu@correo.com" autocomplete="email">
+      </div>
+      <div class="field">
+        <label for="authPassword">Contraseña</label>
+        <input id="authPassword" type="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <p class="result-note" id="authNote" hidden></p>
+      <div class="modal-actions">
+        <button class="neu-btn" id="authGoBtn">Ir al calendario</button>
+        <button class="neu-btn save-btn" id="authSubmitBtn">Entrar</button>
+      </div>
+    </div>
+  </div>
 </body>
 
 </html>

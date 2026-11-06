@@ -152,6 +152,26 @@
     </div>
   </div>
 
+  <!-- Modal: sesión (solo registrados) -->
+  <div class="modal-overlay" id="authOverlay">
+    <div class="neu modal">
+      <h3>Inicia sesión</h3>
+      <div class="field">
+        <label for="authEmail">Correo</label>
+        <input id="authEmail" type="email" placeholder="tu@correo.com" autocomplete="email">
+      </div>
+      <div class="field">
+        <label for="authPassword">Contraseña</label>
+        <input id="authPassword" type="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <p class="result-note" id="authNote" hidden></p>
+      <div class="modal-actions">
+        <button class="neu-btn" id="authGoBtn">Ir al calendario</button>
+        <button class="neu-btn save-btn" id="authSubmitBtn">Entrar</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="/src/data-room.ts"></script>
 </body>
 

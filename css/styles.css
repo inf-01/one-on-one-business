@@ -3,7 +3,7 @@
    Compartido por: index.html · dashboard.html · data-room.html
    ------------------------------------------------------------
    Tokens: Soft UI (neumorfismo marcado) — retorfuturista ejecutivo
-   Acentos: indigo-600 · blue-700 · sky-600 (Luis)
+   Acentos: indigo-600 · blue-700 · sky-600 (paleta de miembros)
    Superficies del mismo tono que el fondo: la profundidad la dan
    sombras duales (luz ↑ izquierda · sombra ↓ derecha) y hundidos inset.
    ============================================================ */
@@ -28,6 +28,19 @@
   --luis: #0284c7;
   --jose-soft: rgba(79, 70, 229, 0.1);
   --luis-soft: rgba(2, 132, 199, 0.1);
+  /* Paleta de miembros (rotación para equipos >2). Mantiene el lenguaje neutro. */
+  --member-2: #7c3aed;
+  --member-3: #059669;
+  --member-4: #d97706;
+  --member-5: #dc2626;
+  --member-6: #0d9488;
+  --member-7: #db2777;
+  --member-2-soft: rgba(124, 58, 237, 0.1);
+  --member-3-soft: rgba(5, 150, 105, 0.1);
+  --member-4-soft: rgba(217, 119, 6, 0.1);
+  --member-5-soft: rgba(220, 38, 38, 0.08);
+  --member-6-soft: rgba(13, 148, 136, 0.1);
+  --member-7-soft: rgba(219, 39, 119, 0.09);
   --ok: #059669;
   --ok-soft: rgba(5, 150, 105, 0.1);
   --warn: #d97706;
@@ -72,6 +85,12 @@
     --luis: #38bdf8;
     --jose-soft: rgba(99, 102, 241, 0.16);
     --luis-soft: rgba(56, 189, 248, 0.14);
+    --member-2: #a78bfa;
+    --member-3: #34d399;
+    --member-4: #fbbf24;
+    --member-5: #f87171;
+    --member-6: #2dd4bf;
+    --member-7: #f472b6;
     --ok: #34d399;
     --ok-soft: rgba(52, 211, 153, 0.12);
     --warn: #fbbf24;
@@ -104,6 +123,12 @@
   --luis: #38bdf8;
   --jose-soft: rgba(99, 102, 241, 0.16);
   --luis-soft: rgba(56, 189, 248, 0.14);
+  --member-2: #a78bfa;
+  --member-3: #34d399;
+  --member-4: #fbbf24;
+  --member-5: #f87171;
+  --member-6: #2dd4bf;
+  --member-7: #f472b6;
   --ok: #34d399;
   --ok-soft: rgba(52, 211, 153, 0.12);
   --warn: #fbbf24;
@@ -274,6 +299,14 @@ a.neu-btn.nav-btn, a.neu-btn.today-btn { text-decoration: none; display: flex; a
 .progress-fill { height: 100%; width: 0%; border-radius: 999px; background: var(--accent); transition: width .35s ease; }
 .progress-fill.jose { background: var(--jose); }
 .progress-fill.luis { background: var(--luis); }
+.progress-fill.member-0 { background: var(--jose); }
+.progress-fill.member-2 { background: var(--member-2); }
+.progress-fill.member-3 { background: var(--member-3); }
+.progress-fill.member-4 { background: var(--member-4); }
+.progress-fill.member-5 { background: var(--member-5); }
+.progress-fill.member-6 { background: var(--member-6); }
+.progress-fill.member-7 { background: var(--member-7); }
+.progress-fill.member-8 { background: var(--jose); }
 .progress-count { font-size: 12px; font-weight: 700; color: var(--text); min-width: 46px; text-align: right; font-variant-numeric: tabular-nums; }
 
 /* ---------- Calendario ---------- */
@@ -303,6 +336,14 @@ a.neu-btn.nav-btn, a.neu-btn.today-btn { text-decoration: none; display: flex; a
 .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .dot.jose { background: var(--jose); }
 .dot.luis { background: var(--luis); }
+.dot.member-0 { background: var(--jose); }
+.dot.member-2 { background: var(--member-2); }
+.dot.member-3 { background: var(--member-3); }
+.dot.member-4 { background: var(--member-4); }
+.dot.member-5 { background: var(--member-5); }
+.dot.member-6 { background: var(--member-6); }
+.dot.member-7 { background: var(--member-7); }
+.dot.member-8 { background: var(--jose); }
 
 /* ---------- Panel de eventos ---------- */
 .panel { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
@@ -320,7 +361,18 @@ a.neu-btn.nav-btn, a.neu-btn.today-btn { text-decoration: none; display: flex; a
 .event .bar { width: 3px; height: 30px; border-radius: 3px; background: var(--accent); flex-shrink: 0; }
 .event .bar.jose { background: var(--jose); }
 .event .bar.luis { background: var(--luis); }
-.event.done .bar.jose, .event.done .bar.luis { background: var(--ok); }
+.event .bar.member-0 { background: var(--jose); }
+.event .bar.member-2 { background: var(--member-2); }
+.event .bar.member-3 { background: var(--member-3); }
+.event .bar.member-4 { background: var(--member-4); }
+.event .bar.member-5 { background: var(--member-5); }
+.event .bar.member-6 { background: var(--member-6); }
+.event .bar.member-7 { background: var(--member-7); }
+.event .bar.member-8 { background: var(--jose); }
+.event.done .bar.jose, .event.done .bar.luis,
+.event.done .bar.member-0, .event.done .bar.member-2, .event.done .bar.member-3,
+.event.done .bar.member-4, .event.done .bar.member-5, .event.done .bar.member-6,
+.event.done .bar.member-7, .event.done .bar.member-8 { background: var(--ok); }
 .event .info { flex: 1; min-width: 0; }
 .event .info .t { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .event .info .h { font-size: 12px; color: var(--text-soft); }
@@ -356,21 +408,32 @@ a.neu-btn.nav-btn, a.neu-btn.today-btn { text-decoration: none; display: flex; a
 .badge.en-progreso { color: var(--warn); border-color: rgba(217, 119, 6, .45); background: var(--warn-soft); }
 .badge.completada { color: var(--ok); border-color: rgba(5, 150, 105, .45); background: var(--ok-soft); }
 
-/* ---------- Selector de usuario ---------- */
-.user-toggle { display: flex; gap: 8px; flex-shrink: 0; }
+/* ---------- Selector de usuario (dinámico) ---------- */
+.user-toggle { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
 .user-chip {
   font-size: 11px; font-weight: 700; letter-spacing: .1em;
   padding: 8px 14px; border-radius: 999px;
   background: var(--surface); color: var(--text-soft);
+  max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.user-chip.active[data-user="José"] {
+.user-chip.active {
+  box-shadow: var(--nm-inset);
+}
+.user-chip.active.jose, .user-chip.active.member-0 {
   color: var(--jose); background: var(--jose-soft);
   box-shadow: var(--nm-inset), 4px 4px 14px rgba(79, 70, 229, .32);
 }
-.user-chip.active[data-user="Luis"] {
+.user-chip.active.luis {
   color: var(--luis); background: var(--luis-soft);
   box-shadow: var(--nm-inset), 4px 4px 14px rgba(2, 132, 199, .32);
 }
+.user-chip.active.member-2 { color: var(--member-2); background: var(--member-2-soft); box-shadow: var(--nm-inset); }
+.user-chip.active.member-3 { color: var(--member-3); background: var(--member-3-soft); box-shadow: var(--nm-inset); }
+.user-chip.active.member-4 { color: var(--member-4); background: var(--member-4-soft); box-shadow: var(--nm-inset); }
+.user-chip.active.member-5 { color: var(--member-5); background: var(--member-5-soft); box-shadow: var(--nm-inset); }
+.user-chip.active.member-6 { color: var(--member-6); background: var(--member-6-soft); box-shadow: var(--nm-inset); }
+.user-chip.active.member-7 { color: var(--member-7); background: var(--member-7-soft); box-shadow: var(--nm-inset); }
+.user-chip.active.member-8 { color: var(--jose); background: var(--jose-soft); box-shadow: var(--nm-inset); }
 
 /* ---------- Progreso personal ---------- */
 .personal-block { display: flex; flex-direction: column; gap: 12px; }
@@ -481,6 +544,14 @@ a.neu-btn.nav-btn, a.neu-btn.today-btn { text-decoration: none; display: flex; a
 .dotm { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .dotm.jose { background: var(--jose); }
 .dotm.luis { background: var(--luis); }
+.dotm.member-0 { background: var(--jose); }
+.dotm.member-2 { background: var(--member-2); }
+.dotm.member-3 { background: var(--member-3); }
+.dotm.member-4 { background: var(--member-4); }
+.dotm.member-5 { background: var(--member-5); }
+.dotm.member-6 { background: var(--member-6); }
+.dotm.member-7 { background: var(--member-7); }
+.dotm.member-8 { background: var(--jose); }
 .data-table .mini {
   display: block; width: 72px; height: 6px; border-radius: 999px;
   background: var(--surface-2); border: 1px solid var(--border);
@@ -489,6 +560,14 @@ a.neu-btn.nav-btn, a.neu-btn.today-btn { text-decoration: none; display: flex; a
 .data-table .mini i { display: block; height: 100%; border-radius: 999px; }
 .data-table .mini i.jose { background: var(--jose); }
 .data-table .mini i.luis { background: var(--luis); }
+.data-table .mini i.member-0 { background: var(--jose); }
+.data-table .mini i.member-2 { background: var(--member-2); }
+.data-table .mini i.member-3 { background: var(--member-3); }
+.data-table .mini i.member-4 { background: var(--member-4); }
+.data-table .mini i.member-5 { background: var(--member-5); }
+.data-table .mini i.member-6 { background: var(--member-6); }
+.data-table .mini i.member-7 { background: var(--member-7); }
+.data-table .mini i.member-8 { background: var(--jose); }
 .data-table .cell-muted { color: var(--text-soft); font-weight: 500; }
 
 /* ---------- DASHBOARD ---------- */
@@ -518,6 +597,14 @@ a.neu-btn.nav-btn, a.neu-btn.today-btn { text-decoration: none; display: flex; a
 }
 .speed-user.jose { color: var(--jose); }
 .speed-user.luis { color: var(--luis); }
+.speed-user.member-0 { color: var(--jose); }
+.speed-user.member-2 { color: var(--member-2); }
+.speed-user.member-3 { color: var(--member-3); }
+.speed-user.member-4 { color: var(--member-4); }
+.speed-user.member-5 { color: var(--member-5); }
+.speed-user.member-6 { color: var(--member-6); }
+.speed-user.member-7 { color: var(--member-7); }
+.speed-user.member-8 { color: var(--jose); }
 .speed-val { font-size: 14px; font-weight: 700; color: var(--text); margin-left: auto; font-variant-numeric: tabular-nums; }
 .dash-note { text-align: center; color: var(--text-soft); font-size: 12.5px; padding: 0 4px 8px; }
 

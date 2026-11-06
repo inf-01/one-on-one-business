@@ -1,150 +1,151 @@
-# ONE ON ONE BUSINESS — Gestión de proyectos (José & Luis)
+# ONE ON ONE BUSINESS — Gestión de proyectos por equipo registrado
 
-Stack: **Vercel** (frontend + serverless) + **Google Sheets** (base de datos vía Google Apps Script).
+Stack: **Vercel** (frontend + serverless) + **Supabase** (Auth + PostgreSQL + Storage) + **Gemini** (IA de la Minuta).
+Solo personas registradas pueden ver y modificar sus datos. No hay nombres fijos: los responsables son los `display_name` de `public.profiles` y la IA asigna por cargo.
 
-## Estructura de archivos (lista para GitHub)
+## 0. Qué cambió (misión Senior Backend)
 
-```
-/
-├── index.html            ← Calendario SEMANAL (Dom–Sáb)
-├── dashboard.html        ← Dashboard de métricas
-├── favicon.png           ← icono de pestaña (versión recortada del logo)
-├── logo-dark.png         ← logotipo para fondos OSCUROS (tema noche)
-├── logo-light.png        ← logotipo para fondos CLAROS (tema día)
-├── logo con para fondo negro.png   ← original del diseñador (no editar)
-├── logo con para fondo blanco.png  ← original del diseñador (no editar)
-├── css/
-│   └── styles.css        ← CSS compartido (estilo original intacto + nuevos componentes)
-├── js/
-│   ├── api.js            ← cliente fetch() a /api/sync
-│   ├── app.js            ← lógica del calendario semanal
-│   └── dashboard.js      ← lógica del dashboard
-├── api/
-│   └── sync.js           ← Serverless Function de Vercel (puente a Apps Script)
-├── apps-script/
-│   └── Code.gs           ← código para Google Apps Script
-└── README.md
-```
+- Eliminado `José / Luis` hardcodeado de código, UI y base de datos.
+- Registro con `display_name + correo + contraseña + cargo` (`Tecnologico`, `Contable`, `Administracion`, `Ventas`, `Operaciones`, `Otro`).
+- Todo protegido con Supabase Auth: calendario, dashboard, Data Room, minuta y tareas exigen `Authorization: Bearer <JWT>`.
+- Todas las claves viven **solo en Vercel** (nunca en el navegador): `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`, `GEMINI_API_KEY`.
+- Lógica y estética intactas (neumorfismo, `--jose/--luis` como colores 1–2 de la paleta de miembros, `.modal`, `.user-chip`, `.field`).
 
----
+## 1. Supabase: crear el proyecto y pegar el SQL
 
-## 1. Google Sheets + Google Apps Script
+1. Entra a [supabase.com](https://supabase.com) → **New project** (name: `one-on-one-business`).
+2. En el proyecto: **SQL Editor → New query**.
+3. Abre `supabase/schema.sql` de este repo, copia **todo** y pégalo → **Run**.
+   - Crea `profiles`, `projects`, `project_members`, `tasks`, `documents`, `minutas`.
+   - Crea el trigger `handle_new_user()` (crea el `profile` al registrarse con su cargo).
+   - Activa RLS (sin políticas públicas: solo el servidor con `service_role` entra).
+4. En **Authentication → Providers → Email**, deja **Email** activado. Si activaste **Confirm email**, desactívalo para el primer uso (o necesitarás confirmar cada correo).
+5. En **Settings → API** copia:
+   - `Project URL` → `SUPABASE_URL`
+   - `anon public key` → `SUPABASE_ANON_KEY`
+   - `service_role secret key` → `SUPABASE_SERVICE_KEY` (solo servidor)
+6. En **Storage**, crea un bucket privado llamado `documentos` (si el servidor lo crea solo al subir el primer archivo, también sirve; créalo a mano para ir seguro).
 
-1. Crea una hoja de cálculo nueva en Google Drive (ej. `ONE_ON_ONE_DB`).
-2. **Extensiones > Apps Script** y pega todo el contenido de `apps-script/Code.gs`.
-3. Cambia la constante secreta:
-   ```js
-   var API_KEY = 'ONE_ON_ONE_CAMBIA_ESTA_CLAVE'; // ⚠️ pon tu propia clave
-   ```
-4. **Implementar > Nueva implementación > Aplicación web**:
-   - Ejecutar como: **Yo**
-   - Quién tiene acceso: **Cualquier persona**
-5. Autoriza los permisos la primera vez y copia la **URL pública** (termina en `/exec`).
-   → Esto será tu `GAS_URL`.
-6. La hoja crea sola la pestaña **`Tareas`** con las columnas exactas:
+> **Storage (rol service_role):** el bucket debe quedar **privado**. Las subidas y descargas van con URLs firmadas desde Vercel.
 
-| Columna | Campo | Descripción |
-|---|---|---|
-| **A** | `ID` | Identificador único (`T-<uuid>`). Nunca se edita a mano. |
-| **B** | `Fecha` | Fecha de la tarea en formato `YYYY-MM-DD` (la usa el calendario). |
-| **C** | `Titulo` | Texto de la tarea (máx. 120 caracteres). |
-| **D** | `Responsable` | `José` o `Luis` (define el color de la barra: cian / magenta). |
-| **E** | `Estado` | `pendiente` o `completada`. |
-| **F** | `FechaCreacion` | ISO 8601 (`2026-11-01T14:30:00.000Z`). Se pone al crear. |
-| **G** | `FechaFinalizacion` | ISO 8601. **La pone sola el script** al marcar `completada` y borra al reabrir. Es lo que alimenta la métrica de velocidad del dashboard. |
-| **H** | `Hora` | *(opcional)* `HH:MM` para las alarmas de 5 minutos. |
+## 2. Vercel: variables secretas + deploy
 
-> Si cambias `Code.gs`, vuelve a **Implementar > Administrar implementaciones > Editar > Implementar** para publicar la nueva versión (la URL no cambia).
-
----
-
-## 2. Vercel
-
-1. Sube el repo a GitHub y créalo en [vercel.com/new](https://vercel.com/new) (framework: **Other**).
-2. En **Settings > Environment Variables** agrega:
+1. Sube este repo a GitHub y créalo en [vercel.com/new](https://vercel.com/new) (framework: **Other**).
+2. En **Settings → Environment Variables** agrega (marca **Production** y **Preview**):
 
    | Variable | Valor |
    |---|---|
-   | `GAS_URL` | URL de Apps Script (la que termina en `/exec`) |
-   | `API_SECRET` | **Exactamente la misma** clave que `API_KEY` en `Code.gs` |
+   | `SUPABASE_URL` | `https://TU_REF.supabase.co` |
+   | `SUPABASE_ANON_KEY` | anon public key (solo servidor) |
+   | `SUPABASE_SERVICE_KEY` | service_role secret key (solo servidor) |
+   | `GEMINI_API_KEY` | Clave de [Google AI Studio](https://aistudio.google.com/app/apikey) |
+   | `GEMINI_MODEL` | *(opcional)* p. ej. `gemini-3.5-flash-lite` |
 
-3. Deploy. Vercel detecta automáticamente:
-   - `/api/sync.js` → Serverless Function
-   - `index.html`, `dashboard.html`, `css/`, `js/` → estáticos.
+3. **Deploy**. Vercel detecta:
+   - `api/auth.ts`, `api/sync.ts`, `api/minuta.ts`, `api/data-room.ts` → Serverless Functions
+   - `index.html`, `dashboard.html`, `data-room.html` → estáticos
+4. Si ya habías puesto `GAS_URL` / `API_SECRET`, puedes dejarlas: sin Supabase se usa el respaldo legacy Google Sheets. Con Supabase, las tareas van en `public.tasks`.
 
-### Cómo fluyen los datos (seguridad)
+### Clave de IA (Gemini)
+
+1. Entra a [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) → **Create API key**.
+2. En Vercel: **Settings → Environment Variables → Add New** → `GEMINI_API_KEY` → **Redeploy**.
+
+La clave de IA vive **solo en Vercel**: jamás se sube a GitHub ni llega al navegador.
+Si falta la clave, la Minuta sigue en **modo líneas** (una tarea por línea), sin romper nada.
+
+## 3. Primer uso (hoy) — 5 minutos
+
+1. Abre tu dominio de Vercel → verás **Inicia sesión** (sin nombres fijos).
+2. Pulsa **Crear cuenta** → completa:
+   - `Nombre` (visible como responsable, ej. `Ana`)
+   - `Correo` y `Contraseña` (mín. 8 caracteres)
+   - `Cargo` (ej. `Tecnologico` o `Contable` — la IA usará esto para asignar)
+3. Repite el registro para tu socio con su propio nombre y cargo.
+4. En **Data Room → Nuevo proyecto**, crea el primer proyecto (ej. `Cliente Norte`). Eres el `owner` (pueden añadirse miembros en `project_members`).
+5. En el calendario usa el desplegable **Todos los proyectos / [tu proyecto]** para filtrar.
+6. Pulsa **Minuta** → pega el texto (ej. *“Ana envía la propuesta el jueves a las 10. El contable revisa el presupuesto mañana.”*) → la IA crea las tareas y las asigna por nombre/cargo.
+7. Completa tareas con `✓` (solo puedes cambiar **tus** tareas: verás el aviso si intentas tocar las ajenas).
+8. Comparte el link de Vercel con tu socio: ambos entran con su cuenta y ven sus tareas.
+
+## 4. Cómo fluyen los datos (seguridad)
 
 ```
-index.html / dashboard.html
-      │  fetch('/api/sync')      ← sin secretos
+index.html / dashboard.html / data-room.html
+      │  fetch('/api/*', { Authorization: 'Bearer <JWT>' })
       ▼
-api/sync.js (Vercel)             ← inyecta API_SECRET (variable de entorno)
-      │  fetch(GAS_URL?key=…)
+  api/auth.ts · api/sync.ts · api/minuta.ts · api/data-room.ts (Vercel)
+      │  valida el JWT contra Supabase Auth (/auth/v1/user)
+      │  usa SUPABASE_SERVICE_KEY solo en servidor
       ▼
-Code.gs (Google Apps Script)      ← valida key, lee/escribe la hoja "Tareas"
+  Supabase (PostgreSQL + Auth + Storage)
+      - profiles · projects · project_members · tasks · documents · minutas
       ▼
-Google Sheets
+  Gemini (IA) — solo desde api/minuta.ts
 ```
 
-El secreto **nunca** llega al navegador.
+- El secreto **nunca** llega al navegador. Solo guardas el JWT en `sessionStorage`.
+- RLS activa sin políticas públicas: `anon`/`authenticated` no tocan las tablas. Solo Vercel con `service_role` entra, y antes valida el JWT.
+- Cada usuario ve/crea/edita según su proyecto y sus tareas asignadas (reassignar/borrar: solo el creador o el dueño del proyecto).
 
----
-
-## 3. Desarrollo local
+## 5. Desarrollo local
 
 ```bash
-npm i -g vercel
-vercel dev
+npm i
+npm run dev
 ```
 
-Crea un archivo `.env.local` (no se sube a GitHub):
+Crea `.env.local` (no se sube a GitHub) con las mismas variables de Vercel:
 
 ```
-GAS_URL=https://script.google.com/macros/s/XXXX/exec
-API_SECRET=tu-clave-secreta
+SUPABASE_URL=https://TU_REF.supabase.co
+SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_KEY=...
+GEMINI_API_KEY=...
 ```
 
----
+> En local también necesitas `vercel dev` para que las Serverless Functions corran.
 
-## 4. Subir a GitHub
+## 6. Subir a GitHub
 
 ```bash
-git init
 git add .
-git commit -m "One on One Business: calendario semanal + dashboard + API"
-git branch -M main
-git remote add origin https://github.com/TU_USUARIO/TU_REPO.git
-git push -u origin main
+git commit -m "feat(auth): equipo registrado con cargo + Supabase tasks + RLS"
+git push
 ```
 
----
+Vercel hace deploy automático al hacer push.
 
-## 5. Funcionalidades
+## 7. Funcionalidades
 
-### index.html (calendario semanal)
-- Grid de **7 días** (Dom → Sáb) de la semana visible; `‹` `›` cambian de semana; `Hoy` vuelve a la semana actual.
+### Calendario (`index.html`)
+- Grid de **7 días** (Dom → Sáb); `‹` `›` cambian de semana; `Hoy` vuelve a la semana actual.
 - Título marquesina con rango: **"Sem 44: 27 Oct - 02 Nov"**.
-- Botón de tema (Sol/Luna) reubicado en la **barra superior del header**.
-- **Barra GENERAL** en la toolbar (suma José + Luis del día seleccionado).
-- **Barra PERSONAL** en el panel inferior con toggle **JOSÉ / LUIS**.
-- Barra de color por responsable: **cian `--neon` (José)**, **magenta `--neon2` (Luis)**; los puntos del día también.
-- Modal **Minuta**: pega texto (una tarea por línea), eliges responsable y se crea todo por la API (`Ctrl+Enter` procesa).
-- Todo el CRUD pasa por `fetch()` → `/api/sync` → Google Sheets.
-- `localStorage` solo guarda preferencias de UI (tema, alarmas, usuario activo) — **ningún dato del proyecto**.
+- Botón de tema (Sol/Luna) en la **barra superior del header** + **Salir** (cierra sesión).
+- **Filtro de proyecto** en la toolbar (Todos / cada proyecto).
+- **Barra GENERAL** (equipo del día seleccionado).
+- **Barra PERSONAL** con chips **dinámicos** (uno por perfil registrado, colores por índice).
+- Modal **Minuta**: la IA asigna por **nombre o cargo** desde `profiles`. Sin IA, crea una tarea por línea.
+- Editar/eliminar solo tus tareas. El resto se muestra en solo lectura.
 
-### dashboard.html
-- Total completadas vs pendientes + avance global.
-- Rendimiento José vs Luis (barras cian/magenta).
-- Velocidad de finalización promedio (y por usuario) calculada con `FechaCreacion → FechaFinalizacion`.
-- Botón `‹` / "Calendario" para volver y `↻` para actualizar.
+### Dashboard (`dashboard.html`)
+- Total completadas / en progreso / pendientes + avance global.
+- Tabla **Rendimiento por responsable** (una fila por perfil registrado).
+- Velocidad de finalización promedio (y por miembro) con `fecha_creacion → fecha_finalizacion`.
 
-### API (apps-script/Code.gs)
-- `doGet` → `action=getTasks` (leer tareas).
-- `doPost` → `action=create | update | delete | bulk` (escribir, con `LockService`).
-- Respuesta JSON siempre con `{ ok: true/false, … }`.
+### Data Room (`data-room.html`)
+- Proyectos propios + de equipo. Solo el dueño o un miembro los ve.
+- Subida directa a Storage con URL firmada (15 MB, categorías fijas, nombre saneado en el servidor).
+- Histórico de minutas por proyecto (fecha, título, tareas y acuerdos).
 
----
+### API
+- `/api/auth` → `register | login | me | profiles` (Supabase Auth vía servidor).
+- `/api/sync` → tareas en Supabase `tasks` (`getTasks | create | update | delete | bulk`). Sin Supabase, respaldo Google Sheets.
+- `/api/minuta` → extrae con **Gemini** (título, acuerdos y action items), asigna por **nombre/cargo**, crea las tareas en el servidor e archiva la minuta en Supabase.
+- `/api/data-room` → proyectos, documentos y minutas (solo accesibles).
 
-## 6. Notas
+## 8. Notas
+
 - El sonido de "tarea completada" y las alarmas siguen intactos.
-- Los estilos, colores (`--neon`, `--bt-dia`, `--bt-cero`), fuente Orbitron e iconos pixel-art **no se modificaron**: todo lo nuevo reutiliza el mismo lenguaje neumórfico.
+- Estilos, colores, fuente Inter y layout **no se modificaron**: todo lo nuevo reutiliza el mismo lenguaje neumórfico (`--jose`/`--luis` = miembros 1–2, `--member-2…7` para el resto).
+- **Google Sheets / Apps Script (`apps-script/Code.gs`)** queda como respaldo legacy: con Supabase configurado, la fuente primaria es `public.tasks`.

@@ -1,14 +1,16 @@
 /* ============================================================
    ONE ON ONE BUSINESS — /api/data-room (Vercel Serverless Function)
-   Data Room sobre Supabase:
+   Data Room sobre Supabase con AUTH obligatoria:
 
+   · Solo usuarios registrados ven/modifican sus proyectos,
+     documentos y minutas (owner o member).
    · Storage bucket "documentos" → los archivos. El navegador
      sube DIRECTO con una URL firmada (Vercel solo valida y
      confirma), por eso no aplica el límite de 4.5 MB de las
      serverless functions.
-   · PostgreSQL: projects · documents · minutas. RLS activada
-     sin políticas públicas: solo el service_role entra, desde
-     este archivo (la clave jamás llega al navegador).
+   · PostgreSQL: projects · project_members · documents · minutas.
+     RLS activada sin políticas públicas: solo el service_role
+     entra, desde este archivo (la clave jamás llega al navegador).
 
    Variables de entorno requeridas en Vercel:
      - SUPABASE_URL         → https://xxxx.supabase.co
@@ -16,7 +18,7 @@
 
    GET  ?action=projects
         ?action=documents&projectId=<uuid>
-        ?action=minutas
+        ?action=minutas[&projectId=<uuid>]
    POST {action: createProject | sign | confirm | downloadUrl | delete}
 
    Reglas: 15 MB por archivo · categorías fijas (Propuestas,
@@ -25,6 +27,12 @@
    ============================================================ */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import {
+  assertProjectAccess as _assertProjectAccess,
+  HttpError as _HttpError,
+  listAccessibleProjectIds as _listAccessible,
+  requireAuth as _requireAuth
+} from './_supabase';
 
 const BUCKET = 'documentos';
 const MAX_SIZE = 15 * 1024 * 1024; // 15 MB por archivo
@@ -247,27 +255,7 @@ async function getDocument(env: SupaEnv, id: string): Promise<Record<string, unk
   return null;
 }
 
-/* ---------- Escrituras ---------- */
-
-async function createProject(env: SupaEnv, raw: Record<string, unknown>): Promise<unknown> {
-  const name = String(raw.name || '').trim().replace(/\s+/g, ' ').slice(0, 60);
-  if (!name) throw new HttpError(400, 'VALIDATION', 'Escribe un nombre para el proyecto');
-
-  const r = await sfetch(env, '/rest/v1/projects', {
-    method: 'POST',
-    headers: supaHeaders(env, { Prefer: 'return=representation' }),
-    body: JSON.stringify({ name })
-  });
-  if (r.status === 409) {
-    throw new HttpError(409, 'DUPLICATE', 'Ya existe un proyecto con ese nombre');
-  }
-  if (!r.ok) {
-    throw new HttpError(502, 'SUPABASE', 'No se pudo crear el proyecto (HTTP ' + r.status + ')');
-  }
-  const rows = await jsonOf(r);
-  if (Array.isArray(rows) && rows[0] && typeof rows[0] === 'object') return rows[0];
-  throw new HttpError(502, 'SUPABASE', 'Supabase no devolvió el proyecto creado');
-}
+/* ---------- Escrituras (createProject va en el handler con owner_id) ---------- */
 
 async function signUpload(
   env: SupaEnv,
@@ -432,23 +420,69 @@ const handler = async (req: VercelRequest, res: VercelResponse): Promise<void> =
     return;
   }
 
+  // Auth obligatoria: solo registrados
+  let userId = '';
+  let sbEnv: { url: string; anon: string; service: string } | null = null;
   try {
+    const auth = await _requireAuth(req);
+    userId = auth.user.id;
+    sbEnv = auth.env;
+  } catch (e) {
+    if (e instanceof _HttpError) {
+      res.status(e.status).json({ ok: false, code: e.code, error: e.message });
+      return;
+    }
+    res.status(401).json({ ok: false, code: 'UNAUTHENTICATED', error: 'Inicia sesión para continuar' });
+    return;
+  }
+
+  try {
+    const accessible = sbEnv ? await _listAccessible(sbEnv, userId) : [];
     /* ---------- GET: listados ---------- */
     if (req.method === 'GET') {
       const rawAction = req.query.action;
       const action = (typeof rawAction === 'string' ? rawAction : undefined) || 'projects';
 
       if (action === 'projects') {
-        res.status(200).json({ ok: true, projects: await listProjects(env) });
+        const all = await listProjects(env);
+        // Filtrar a proyectos accesibles (owner o member)
+        const filtered = (all as Array<Record<string, unknown>>).filter(p => {
+          const id = String(p.id ?? '');
+          const owner = String((p as { owner_id?: unknown }).owner_id ?? '');
+          if (owner === userId) return true;
+          if (accessible.includes(id)) return true;
+          // Proyectos legacy sin owner: visibles solo si el usuario es member;
+          // si no hay miembros y no tiene owner, solo el creador los ve →
+          // para compatibilidad inicial, mostrarlos a cualquier registrado
+          // hasta que se les asigne owner.
+          if (!owner) return true;
+          return false;
+        });
+        res.status(200).json({ ok: true, projects: filtered });
         return;
       }
       if (action === 'documents') {
         const projectId = asUuid(req.query.projectId, 'projectId');
+        if (sbEnv) await _assertProjectAccess(sbEnv, userId, projectId);
+        else if (accessible.length && !accessible.includes(projectId)) {
+          res.status(404).json({ ok: false, code: 'NOT_FOUND', error: 'Proyecto no encontrado' });
+          return;
+        }
         res.status(200).json({ ok: true, documents: await listDocuments(env, projectId) });
         return;
       }
       if (action === 'minutas') {
-        res.status(200).json({ ok: true, minutas: await listMinutas(env) });
+        const pidRaw = typeof req.query.projectId === 'string' ? req.query.projectId : '';
+        const rows = await listMinutas(env);
+        const filtered = pidRaw
+          ? (rows as Array<Record<string, unknown>>).filter(m => String(m.project_id ?? '') === pidRaw)
+          : (rows as Array<Record<string, unknown>>).filter(m => {
+              const pid = typeof m.project_id === 'string' ? m.project_id : '';
+              const creator = typeof m.created_by === 'string' ? (m as { created_by?: string }).created_by : '';
+              if (!pid) return creator ? creator === userId : true;
+              return accessible.includes(pid) || creator === userId;
+            });
+        res.status(200).json({ ok: true, minutas: filtered });
         return;
       }
       res.status(400).json({ ok: false, error: 'Acción no válida: ' + action });
@@ -470,25 +504,57 @@ const handler = async (req: VercelRequest, res: VercelResponse): Promise<void> =
       const action = String(raw.action || '');
 
       if (action === 'createProject') {
-        res.status(200).json({ ok: true, project: await createProject(env, raw) });
+        // createProject inserta con owner_id = usuario actual
+        const name = String(raw.name || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+        if (!name) throw new HttpError(400, 'VALIDATION', 'Escribe un nombre para el proyecto');
+        const r = await sfetch(env, '/rest/v1/projects', {
+          method: 'POST',
+          headers: supaHeaders(env, { Prefer: 'return=representation' }),
+          body: JSON.stringify({ name, owner_id: userId })
+        });
+        if (r.status === 409) {
+          res.status(409).json({ ok: false, code: 'DUPLICATE', error: 'Ya existe un proyecto con ese nombre' });
+          return;
+        }
+        if (!r.ok) {
+          res.status(502).json({ ok: false, code: 'SUPABASE', error: 'No se pudo crear el proyecto (HTTP ' + r.status + ')' });
+          return;
+        }
+        const rows = await jsonOf(r);
+        if (Array.isArray(rows) && rows[0] && typeof rows[0] === 'object') {
+          res.status(200).json({ ok: true, project: rows[0] });
+        } else {
+          res.status(502).json({ ok: false, code: 'SUPABASE', error: 'Supabase no devolvió el proyecto creado' });
+        }
         return;
       }
-      if (action === 'sign') {
-        res.status(200).json({ ok: true, ...(await signUpload(env, raw)) });
-        return;
-      }
-      if (action === 'confirm') {
-        res.status(200).json({ ok: true, document: await confirmUpload(env, raw) });
-        return;
-      }
-      if (action === 'downloadUrl') {
-        res.status(200).json({ ok: true, url: await signedDownloadUrl(env, raw) });
-        return;
-      }
-      if (action === 'delete') {
-        await deleteDocument(env, raw);
-        res.status(200).json({ ok: true });
-        return;
+      if (action === 'sign' || action === 'confirm' || action === 'downloadUrl' || action === 'delete') {
+        // Chequear acceso al proyecto si viene projectId
+        const pid = typeof raw.projectId === 'string' ? raw.projectId : '';
+        if (pid) {
+          if (!UUID_RE.test(pid)) throw new HttpError(400, 'VALIDATION', 'projectId inválido');
+          if (sbEnv) await _assertProjectAccess(sbEnv, userId, pid);
+        } else if (action === 'downloadUrl' || action === 'delete') {
+          // download/delete se verifican contra el documento en su función
+          await assertDocAccess(env, userId, accessible, raw);
+        }
+        if (action === 'sign') {
+          res.status(200).json({ ok: true, ...(await signUpload(env, raw)) });
+          return;
+        }
+        if (action === 'confirm') {
+          res.status(200).json({ ok: true, document: await confirmUpload(env, raw) });
+          return;
+        }
+        if (action === 'downloadUrl') {
+          res.status(200).json({ ok: true, url: await signedDownloadUrl(env, raw) });
+          return;
+        }
+        if (action === 'delete') {
+          await deleteDocument(env, raw);
+          res.status(200).json({ ok: true });
+          return;
+        }
       }
       res.status(400).json({ ok: false, error: 'Acción no válida: ' + (action || '(vacía)') });
       return;
@@ -501,9 +567,40 @@ const handler = async (req: VercelRequest, res: VercelResponse): Promise<void> =
       res.status(e.status).json({ ok: false, code: e.code, error: e.message });
       return;
     }
+    if (e instanceof _HttpError) {
+      res.status(e.status).json({ ok: false, code: e.code, error: e.message });
+      return;
+    }
     console.error('[api/data-room] error:', e instanceof Error ? e.message : e);
     res.status(500).json({ ok: false, error: 'Error interno del Data Room.' });
   }
 };
+
+async function assertDocAccess(
+  env: SupaEnv,
+  userId: string,
+  accessible: string[],
+  raw: Record<string, unknown>
+): Promise<void> {
+  const id = String(raw.documentId || '');
+  if (!UUID_RE.test(id)) throw new HttpError(400, 'VALIDATION', 'documentId inválido');
+  const doc = await getDocument(env, id);
+  if (!doc) throw new HttpError(404, 'NOT_FOUND', 'Documento no encontrado');
+  const pid = String(doc.project_id || '');
+  if (!pid) return;
+  if (accessible.includes(pid)) return;
+  // Dueño del proyecto puede si no está en lista (por compatibilidad)
+  const pr = await sfetch(env, '/rest/v1/projects?select=owner_id&id=eq.' + encodeURIComponent(pid) + '&limit=1', {
+    headers: supaHeaders(env)
+  });
+  if (pr.ok) {
+    const rows = await jsonOf(pr);
+    if (Array.isArray(rows) && rows[0]) {
+      const owner = String((rows[0] as { owner_id?: unknown }).owner_id ?? '');
+      if (owner === userId) return;
+    }
+  }
+  throw new HttpError(404, 'NOT_FOUND', 'Documento no encontrado');
+}
 
 export default handler;

@@ -1,5 +1,5 @@
 /* ============================================================
-   ONE ON ONE BUSINESS — Data Room
+   ONE ON ONE BUSINESS — Data Room (solo usuarios registrados)
    - Selector de proyectos (crear / cambiar)
    - Subida DIRECTA a Supabase Storage con URL firmada
      (15 MB, categorías fijas, nombre saneado en el servidor)
@@ -9,7 +9,7 @@
    ============================================================ */
 
 import '../css/styles.css'; // Vite bundlea el CSS junto con este módulo
-import { ApiError, DataRoom as DR } from './api';
+import { ApiError, Auth, DataRoom as DR, getSession, setSession } from './api';
 import { drawIcon } from './icons';
 import type { DocumentRow, MinutaRow, Project } from './types';
 
@@ -167,12 +167,21 @@ function handleLoadError(e: unknown): void {
   if (code === 'NO_SUPABASE') {
     showNote('Configura SUPABASE_URL y SUPABASE_SERVICE_KEY en Vercel para usar el Data Room.');
     uploadZone.classList.add('is-disabled');
+  } else if (code === 'UNAUTHENTICATED') {
+    setSession(null);
+    showNote('Tu sesión expiró. Inicia sesión para ver el Data Room.');
+    showAuth(true);
   } else {
     showToast('⚠ ' + errMsg(e));
   }
 }
 
 async function loadProjects(keepId?: string): Promise<void> {
+  const session = getSession();
+  if (!session || !session.access_token) {
+    showAuth(true);
+    return;
+  }
   try {
     const data = await DR.projects();
     projects = (data.projects ?? []).filter(isProject);
@@ -231,7 +240,7 @@ async function loadDocuments(): Promise<void> {
 
 async function loadMinutas(): Promise<void> {
   try {
-    const data = await DR.minutas();
+    const data = await DR.minutas(currentProject || undefined);
     minutas = (data.minutas ?? []).filter(isMinuta);
     renderMinutas();
   } catch (e) {
@@ -544,6 +553,53 @@ projectCreateBtn.addEventListener('click', async () => {
     btn.disabled = false;
     btn.textContent = label;
   }
+});
+
+/* ---------- Auth gate de Data Room (misma estética .modal) ---------- */
+const authOverlay = $<HTMLElement>('authOverlay');
+const authEmail = $<HTMLInputElement>('authEmail');
+const authPassword = $<HTMLInputElement>('authPassword');
+const authNote = $<HTMLElement>('authNote');
+const authSubmitBtn = $<HTMLButtonElement>('authSubmitBtn');
+const authGoBtn = $<HTMLButtonElement>('authGoBtn');
+function showAuth(open: boolean): void {
+  authOverlay.classList.toggle('open', open);
+  if (open) window.setTimeout(() => authEmail.focus(), 50);
+}
+authGoBtn.addEventListener('click', () => {
+  location.href = 'index.html';
+});
+async function submitAuth(): Promise<void> {
+  authNote.hidden = true;
+  const email = authEmail.value.trim();
+  const password = authPassword.value;
+  if (!email || !password) {
+    authNote.hidden = false;
+    authNote.textContent = '⚠ Escribe tu correo y contraseña';
+    return;
+  }
+  authSubmitBtn.disabled = true;
+  try {
+    const data = await Auth.login({ email, password });
+    const payload = data as unknown as { session?: import('./types').Session };
+    if (payload.session) {
+      setSession(payload.session);
+      showAuth(false);
+      await loadProjects();
+    } else {
+      authNote.hidden = false;
+      authNote.textContent = '⚠ No se pudo iniciar sesión';
+    }
+  } catch (e) {
+    authNote.hidden = false;
+    authNote.textContent = '⚠ ' + errMsg(e);
+  } finally {
+    authSubmitBtn.disabled = false;
+  }
+}
+authSubmitBtn.addEventListener('click', () => void submitAuth());
+authPassword.addEventListener('keydown', e => {
+  if (e.key === 'Enter') void submitAuth();
 });
 
 /* ---------- Arranque ---------- */

@@ -3,18 +3,18 @@
    - 7 días de la semana actual, ‹ › navegan entre semanas
    - Título con rango: "Sem 44: 27 Oct - 02 Nov"
    - Progreso GENERAL (toolbar) + PROGRESO PERSONAL (panel)
-   - Colores: José = indigo · Luis = sky (ver styles.css)
-   - Modal Minuta: pegar texto → Gemini (IA) crea las tareas
-   - localStorage solo para preferencias de UI (tema/alarma/usuario)
+   - Miembros dinámicos desde Supabase (sin nombres fijos)
+   - Modal Minuta: pegar texto → Gemini (IA) crea las tareas por cargo
+   - Solo usuarios registrados: sin sesión se muestra el login
+   - sessionStorage solo guarda la preferencia de UI + JWT de sesión
    ============================================================ */
 
 import '../css/styles.css'; // Vite bundlea el CSS junto con este módulo
-import { API, ApiError } from './api';
+import { API, ApiError, Auth, DataRoom, getSession, setSession } from './api';
 import { drawIcon } from './icons';
-import type { Estado, Task, TaskRaw } from './types';
+import { memberClass, memberNames, shortName } from './members';
+import type { Estado, Profile, Project, Session, Task, TaskRaw } from './types';
 
-const USER_JOSE = 'José';
-const USER_LUIS = 'Luis';
 const MON_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
 /* ---------- Helpers ---------- */
@@ -41,7 +41,7 @@ declare global {
 }
 
 /* ---------- Preferencias de UI (solo tema/alarma/usuario) ----------
-   Los DATOS del proyecto nunca se guardan en localStorage: van a la API. */
+   Los DATOS del proyecto nunca se guardan: van a la API. */
 function prefGet(k: string, d: string | null): string | null {
   try {
     const v = localStorage.getItem(k);
@@ -60,8 +60,15 @@ function prefSet(k: string, v: string): void {
 
 /* ---------- Estado ---------- */
 let tasks: Task[] = []; // tareas desde la API
-let currentUser: 'José' | 'Luis' =
-  prefGet('neu_active_user', USER_JOSE) === USER_LUIS ? USER_LUIS : USER_JOSE;
+let profiles: Profile[] = [];
+let projects: Project[] = [];
+let currentProject: string | null = null;
+let session: Session | null = getSession();
+let viewUser: string = ''; // usuario cuyo progreso personal se ve (default = yo)
+let currentUser: string = ''; // mi display_name (solo este puede editar sus tareas)
+function members(): string[] {
+  return memberNames(profiles);
+}
 
 const today = new Date();
 let viewWeek = weekStart(today); // domingo de la semana visible
@@ -155,6 +162,9 @@ function nextEstado(e: Estado): Estado {
   if (e === 'en progreso') return 'completada';
   return 'pendiente';
 }
+function canEdit(t: Task): boolean {
+  return t.responsable === currentUser || t.created_by === session?.user_id;
+}
 
 /* ---------- DOM ---------- */
 const grid = $<HTMLDivElement>('grid');
@@ -166,6 +176,7 @@ const generalCount = $<HTMLElement>('generalCount');
 const personalFill = $<HTMLElement>('personalFill');
 const personalCount = $<HTMLElement>('personalCount');
 const personalLabel = $<HTMLElement>('personalLabel');
+const projectFilter = $<HTMLSelectElement>('projectFilter');
 
 const toast = document.createElement('div');
 toast.className = 'toast';
@@ -362,31 +373,72 @@ function normalizeTask(raw: TaskRaw | undefined): Task {
     id: src.id ?? null,
     fecha: String(src.fecha || selected),
     titulo: String(src.titulo || ''),
-    responsable: src.responsable === USER_LUIS ? USER_LUIS : USER_JOSE,
+    responsable: String(src.responsable || currentUser || ''),
     estado:
       src.estado === 'completada' || src.estado === 'en progreso'
         ? src.estado
         : 'pendiente',
     fechaCreacion: src.fechaCreacion || new Date().toISOString(),
     fechaFinalizacion: src.fechaFinalizacion || '',
-    hora: String(src.hora || '')
+    hora: String(src.hora || ''),
+    project_id: (src.project_id as string | null) ?? currentProject,
+    assigned_to: (src.assigned_to as string | null) ?? null,
+    created_by: (src.created_by as string | null) ?? null
   };
 }
 async function reload(): Promise<void> {
   try {
-    const data = await API.getTasks();
+    const data = await API.getTasks(currentProject);
     tasks = Array.isArray(data.tasks) ? data.tasks.map(normalizeTask) : [];
   } catch (err) {
     tasks = [];
+    const code = err instanceof ApiError ? err.code : undefined;
+    if (code === 'UNAUTHENTICATED') {
+      setSession(null);
+      session = null;
+      showAuth(true);
+      showToast('⚠ Tu sesión expiró. Inicia sesión de nuevo.');
+      return;
+    }
     console.error('[app] no se pudo sincronizar:', errMsg(err));
     showToast('⚠ No se pudo sincronizar: ' + errMsg(err));
   }
 }
+async function reloadProjects(): Promise<void> {
+  try {
+    const data = await DataRoom.projects();
+    projects = Array.isArray(data.projects) ? (data.projects as Project[]) : [];
+    const cur = projectFilter.value;
+    projectFilter.textContent = '';
+    const allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = 'Todos los proyectos';
+    projectFilter.appendChild(allOpt);
+    projects.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name;
+      projectFilter.appendChild(opt);
+    });
+    if (cur && projects.some(p => p.id === cur)) {
+      projectFilter.value = cur;
+    } else {
+      projectFilter.value = currentProject ?? '';
+    }
+  } catch {
+    /* sin proyectos: el calendario sigue funcionando global */
+  }
+}
+projectFilter.addEventListener('change', () => {
+  currentProject = projectFilter.value || null;
+  void reload().then(() => render());
+});
 
 /* ---------- Render: grid SEMANAL (7 celdas Dom–Sáb) ---------- */
 function render(): void {
   updateMarquee();
   grid.innerHTML = '';
+  const names = members();
 
   for (let i = 0; i < 7; i++) {
     const cellDate = addDays(viewWeek, i);
@@ -413,7 +465,7 @@ function render(): void {
       dots.className = 'dots';
       dayTasks.slice(0, 3).forEach(t => {
         const d = document.createElement('span');
-        d.className = 'dot ' + (t.responsable === USER_LUIS ? 'luis' : 'jose');
+        d.className = 'dot ' + memberClass(t.responsable, names);
         dots.appendChild(d);
       });
       cell.appendChild(dots);
@@ -446,21 +498,23 @@ function renderEvents(): void {
     .slice()
     .sort((a, b) => (a.hora || '99:99').localeCompare(b.hora || '99:99'));
   eventList.innerHTML = '';
+  const names = members();
 
-  /* GENERAL = José + Luis del día seleccionado */
+  /* GENERAL = todo el equipo del día seleccionado */
   const gTotal = list.length;
   const gDone = list.filter(isDone).length;
   const gPct = gTotal ? Math.round((gDone / gTotal) * 100) : 0;
   generalFill.style.width = gPct + '%';
   generalCount.textContent = gDone + '/' + gTotal;
 
-  /* PERSONAL = solo el usuario activo */
-  const mine = list.filter(t => t.responsable === currentUser);
+  /* PERSONAL = usuario visto en el toggle */
+  if (!viewUser && currentUser) viewUser = currentUser;
+  const mine = list.filter(t => t.responsable === viewUser);
   const mTotal = mine.length;
   const mDone = mine.filter(isDone).length;
   const mPct = mTotal ? Math.round((mDone / mTotal) * 100) : 0;
-  personalLabel.textContent = 'Progreso ' + currentUser;
-  personalFill.className = 'progress-fill ' + (currentUser === USER_LUIS ? 'luis' : 'jose');
+  personalLabel.textContent = 'Progreso ' + (viewUser || '—');
+  personalFill.className = 'progress-fill ' + memberClass(viewUser, names);
   personalFill.style.width = mPct + '%';
   personalCount.textContent = mDone + '/' + mTotal;
 
@@ -479,7 +533,7 @@ function renderEvents(): void {
       (isDone(t) ? ' done' : t.estado === 'en progreso' ? ' progreso' : '');
     row.innerHTML = `
       <div class="check" aria-label="Cambiar estado">${isDone(t) ? '✓' : t.estado === 'en progreso' ? '◐' : ''}</div>
-      <div class="bar ${t.responsable === USER_LUIS ? 'luis' : 'jose'}"></div>
+      <div class="bar ${memberClass(t.responsable, names)}"></div>
       <div class="info">
         <div class="t"></div>
         <div class="h"></div>
@@ -490,9 +544,14 @@ function renderEvents(): void {
     $q<HTMLElement>(row, '.t').textContent = t.titulo;
     $q<HTMLElement>(row, '.h').textContent =
       t.responsable + ' · ' + (t.hora ? t.hora : 'Todo el día');
+    const mineTask = canEdit(t);
 
     $q<HTMLElement>(row, '.check').addEventListener('click', async () => {
       if (!t.id) return;
+      if (!mineTask) {
+        showToast('Solo puedes cambiar el estado de tus tareas');
+        return;
+      }
       const next: Estado = nextEstado(t.estado);
       try {
         const data = await API.updateTask(t.id, { estado: next });
@@ -516,6 +575,10 @@ function renderEvents(): void {
 
     $q<HTMLElement>(row, '.del').addEventListener('click', async () => {
       if (!t.id) return;
+      if (!mineTask) {
+        showToast('Solo puedes eliminar tus tareas');
+        return;
+      }
       try {
         await API.deleteTask(t.id);
         tasks = tasks.filter(x => x.id !== t.id);
@@ -557,23 +620,34 @@ $<HTMLElement>('dataRoomBtn').addEventListener('click', () => {
   location.href = 'data-room.html';
 });
 
-/* ---------- Selector de usuario (panel personal) ---------- */
+/* ---------- Selector de usuarios (dinámico desde Supabase) ---------- */
 const userToggle = $<HTMLElement>('userToggle');
-function paintUserToggle(): void {
-  userToggle.querySelectorAll<HTMLButtonElement>('.user-chip').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.user === currentUser);
+function fillUserToggle(container: HTMLElement, selectedName: string): void {
+  container.textContent = '';
+  const names = members();
+  names.forEach(name => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'neu-btn user-chip' + (name === selectedName ? ' active' : '');
+    btn.dataset.user = name;
+    btn.textContent = shortName(name);
+    btn.title = name;
+    btn.classList.add(memberClass(name, names));
+    container.appendChild(btn);
   });
+}
+function paintUserToggle(): void {
+  fillUserToggle(userToggle, viewUser);
 }
 userToggle.addEventListener('click', e => {
   const target = e.target as HTMLElement | null;
   const btn = target?.closest<HTMLButtonElement>('.user-chip');
-  if (!btn) return;
-  currentUser = btn.dataset.user === USER_LUIS ? USER_LUIS : USER_JOSE;
-  prefSet('neu_active_user', currentUser);
+  if (!btn || !btn.dataset.user) return;
+  viewUser = btn.dataset.user;
+  prefSet('neu_active_user', viewUser);
   paintUserToggle();
   renderEvents();
 });
-paintUserToggle();
 
 /* ---------- Modal: nuevo evento ---------- */
 const overlay = $<HTMLElement>('overlay');
@@ -581,18 +655,16 @@ const evTitle = $<HTMLInputElement>('evTitle');
 const evTime = $<HTMLInputElement>('evTime');
 const evUserToggle = $<HTMLElement>('evUserToggle');
 const saveBtn = $<HTMLButtonElement>('saveBtn');
-let evUser: 'José' | 'Luis' = currentUser;
+let evUser: string = '';
 
 function paintEvUser(): void {
-  evUserToggle.querySelectorAll<HTMLButtonElement>('.user-chip').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.user === evUser);
-  });
+  fillUserToggle(evUserToggle, evUser);
 }
 evUserToggle.addEventListener('click', e => {
   const target = e.target as HTMLElement | null;
   const btn = target?.closest<HTMLButtonElement>('.user-chip');
-  if (!btn) return;
-  evUser = btn.dataset.user === USER_LUIS ? USER_LUIS : USER_JOSE;
+  if (!btn || !btn.dataset.user) return;
+  evUser = btn.dataset.user;
   paintEvUser();
 });
 
@@ -621,7 +693,8 @@ saveBtn.addEventListener('click', async () => {
     responsable: evUser,
     estado: 'pendiente',
     fechaCreacion: new Date().toISOString(),
-    hora: evTime.value || ''
+    hora: evTime.value || '',
+    project_id: currentProject
   });
   try {
     const data = await API.createTask(task);
@@ -650,7 +723,7 @@ const minutaAcuerdos = $<HTMLElement>('minutaAcuerdos');
 const minutaResultTasks = $<HTMLElement>('minutaResultTasks');
 const minutaResultNote = $<HTMLElement>('minutaResultNote');
 const minutaDoneBtn = $<HTMLButtonElement>('minutaDoneBtn');
-let minutaUser: 'José' | 'Luis' = currentUser;
+let minutaUser: string = '';
 let minutaIdem = '';
 
 /** Clave única por apertura del modal: los reintentos la reutilizan
@@ -667,15 +740,13 @@ function newIdemKey(): string {
 }
 
 function paintMinutaUser(): void {
-  minutaUserToggle.querySelectorAll<HTMLButtonElement>('.user-chip').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.user === minutaUser);
-  });
+  fillUserToggle(minutaUserToggle, minutaUser);
 }
 minutaUserToggle.addEventListener('click', e => {
   const target = e.target as HTMLElement | null;
   const btn = target?.closest<HTMLButtonElement>('.user-chip');
-  if (!btn) return;
-  minutaUser = btn.dataset.user === USER_LUIS ? USER_LUIS : USER_JOSE;
+  if (!btn || !btn.dataset.user) return;
+  minutaUser = btn.dataset.user;
   paintMinutaUser();
 });
 
@@ -722,10 +793,11 @@ function showMinutaResult(r: {
   });
 
   minutaResultTasks.textContent = '';
+  const names = members();
   r.created.forEach(t => {
     const li = document.createElement('li');
     const dot = document.createElement('span');
-    dot.className = 'dotm ' + (t.responsable === USER_LUIS ? 'luis' : 'jose');
+    dot.className = 'dotm ' + memberClass(t.responsable, names);
     const title = document.createElement('span');
     title.className = 'mr-title';
     title.textContent = t.titulo;
@@ -766,12 +838,13 @@ minutaProcessBtn.addEventListener('click', async () => {
     let note = '';
 
     try {
-      /* 1) El servidor extrae con IA y reparte EN EL SERVIDOR (Google Sheets) */
+      /* 1) El servidor extrae con IA y reparte (Supabase) */
       const data = await API.processMinuta({
         text: raw,
-        responsable: minutaUser,
+        responsable: minutaUser || currentUser,
         fecha: selected,
         hoy: fmt(today),
+        project_id: currentProject,
         idempotencyKey: minutaIdem
       });
       created = (data.tasks ?? []).map(t => normalizeTask(t));
@@ -779,10 +852,8 @@ minutaProcessBtn.addEventListener('click', async () => {
       titulo = typeof data.titulo === 'string' ? data.titulo : '';
     } catch (iaErr) {
       const code = iaErr instanceof ApiError ? iaErr.code : undefined;
-      /* El reparto falló en el servidor: NO hay respaldo de líneas (crearía
-         duplicados o fallaría igual). Se avisa y se puede reintentar con la
-         MISMA idempotencyKey → el servidor no duplica. */
-      if (code === 'DISTRIBUTE_FAILED') throw iaErr;
+      /* El reparto falló en el servidor: NO hay respaldo de líneas */
+      if (code === 'DISTRIBUTE_FAILED' || code === 'UNAUTHENTICATED') throw iaErr;
       /* Sin IA (sin clave o error de extracción) → respaldo: una tarea por línea */
       note = code === 'NO_KEY' ? 'IA sin configurar en Vercel' : 'IA no disponible';
       const nowIso = new Date().toISOString();
@@ -794,10 +865,11 @@ minutaProcessBtn.addEventListener('click', async () => {
           normalizeTask({
             fecha: selected,
             titulo: line.slice(0, 120),
-            responsable: minutaUser,
+            responsable: minutaUser || currentUser,
             estado: 'pendiente',
             fechaCreacion: nowIso,
-            hora: ''
+            hora: '',
+            project_id: currentProject
           })
         );
       const data = await API.bulkCreate(payload);
@@ -831,8 +903,148 @@ minutaText.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeMinuta();
 });
 
+/* ---------- Auth: login / registro (misma estética .modal) ---------- */
+const authOverlay = $<HTMLElement>('authOverlay');
+const authTitle = $<HTMLElement>('authTitle');
+const authName = $<HTMLInputElement>('authName');
+const authNameLabel = $<HTMLElement>('authNameLabel');
+const authCargoWrap = $<HTMLElement>('authCargoWrap');
+const authCargo = $<HTMLSelectElement>('authCargo');
+const authEmail = $<HTMLInputElement>('authEmail');
+const authPassword = $<HTMLInputElement>('authPassword');
+const authNote = $<HTMLElement>('authNote');
+const authSubmitBtn = $<HTMLButtonElement>('authSubmitBtn');
+const authToggleBtn = $<HTMLButtonElement>('authToggleBtn');
+let authMode: 'login' | 'register' = 'login';
+
+function paintAuthMode(): void {
+  const isRegister = authMode === 'register';
+  authTitle.textContent = isRegister ? 'Crear cuenta' : 'Inicia sesión';
+  authSubmitBtn.textContent = isRegister ? 'Registrarme' : 'Entrar';
+  authToggleBtn.textContent = isRegister ? 'Ya tengo cuenta' : 'Crear cuenta';
+  authName.hidden = !isRegister;
+  authNameLabel.hidden = !isRegister;
+  authCargoWrap.hidden = !isRegister;
+  authNote.hidden = true;
+}
+function showAuth(open: boolean): void {
+  authOverlay.classList.toggle('open', open);
+  if (open) {
+    paintAuthMode();
+    window.setTimeout(() => authEmail.focus(), 50);
+  }
+}
+authToggleBtn.addEventListener('click', () => {
+  authMode = authMode === 'login' ? 'register' : 'login';
+  paintAuthMode();
+});
+function authError(msg: string): void {
+  authNote.hidden = false;
+  authNote.textContent = '⚠ ' + msg;
+}
+async function submitAuth(): Promise<void> {
+  authNote.hidden = true;
+  const email = authEmail.value.trim();
+  const password = authPassword.value;
+  if (!email || !password) {
+    authError('Escribe tu correo y contraseña');
+    return;
+  }
+  authSubmitBtn.disabled = true;
+  try {
+    if (authMode === 'register') {
+      const name = authName.value.trim();
+      if (!name) {
+        authError('Escribe tu nombre');
+        return;
+      }
+      const data = await Auth.register({ display_name: name, email, password, cargo: authCargo.value });
+      const payload = data as unknown as { session?: Session | null; needsConfirm?: boolean; message?: string };
+      if (payload.session && payload.session.access_token) {
+        setSession(payload.session);
+        session = payload.session;
+        showToast('¡Cuenta creada! Bienvenido, ' + payload.session.display_name + ' ✓');
+        await boot();
+        showAuth(false);
+      } else if (payload.needsConfirm) {
+        authNote.hidden = false;
+        authNote.textContent = '⚠ ' + (payload.message ?? 'Cuenta creada. Confirma tu correo e inicia sesión.');
+      } else {
+        authError('No se pudo crear la cuenta');
+      }
+    } else {
+      const data = await Auth.login({ email, password });
+      const payload = data as unknown as { session?: Session; profile?: unknown };
+      if (payload.session) {
+        setSession(payload.session);
+        session = payload.session;
+        showToast('¡Hola de nuevo! ✓');
+        await boot();
+        showAuth(false);
+      } else {
+        authError('No se pudo iniciar sesión');
+      }
+    }
+  } catch (e) {
+    authError(errMsg(e));
+  } finally {
+    authSubmitBtn.disabled = false;
+  }
+}
+authSubmitBtn.addEventListener('click', () => void submitAuth());
+authPassword.addEventListener('keydown', e => {
+  if (e.key === 'Enter') void submitAuth();
+});
+$<HTMLButtonElement>('logoutBtn').addEventListener('click', () => {
+  setSession(null);
+  session = null;
+  currentUser = '';
+  viewUser = '';
+  profiles = [];
+  tasks = [];
+  render();
+  showAuth(true);
+  showToast('Sesión cerrada');
+});
+
 /* ---------- Init ---------- */
-void (async function init(): Promise<void> {
+async function boot(): Promise<void> {
+  if (!session || !session.access_token) {
+    showAuth(true);
+    render();
+    return;
+  }
+  currentUser = session.display_name;
+  // Preferencia de vista: último usuario visto o yo mismo
+  viewUser = prefGet('neu_active_user', currentUser) || currentUser;
+  try {
+    const [meData, listData] = await Promise.all([Auth.me(), Auth.profiles()]);
+    const me = (meData as unknown as { profile?: Profile }).profile;
+    if (me) {
+      currentUser = me.display_name;
+      session = { ...session, user_id: me.id, display_name: me.display_name, cargo: me.cargo };
+      setSession(session);
+      if (!viewUser || !prefGet('neu_active_user', null)) viewUser = currentUser;
+    }
+    const list = (listData as unknown as { profiles?: Profile[] }).profiles;
+    profiles = Array.isArray(list) ? list : [];
+  } catch (e) {
+    const code = e instanceof ApiError ? e.code : undefined;
+    if (code === 'UNAUTHENTICATED' || code === 'NO_PROFILE') {
+      setSession(null);
+      session = null;
+      showAuth(true);
+      return;
+    }
+    showToast('⚠ No se pudo cargar tu perfil: ' + errMsg(e));
+  }
+  paintUserToggle();
+  paintEvUser();
+  paintMinutaUser();
+  await reloadProjects();
   await reload();
   render();
-})();
+}
+
+paintAuthMode();
+void boot();

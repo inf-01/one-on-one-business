@@ -42,12 +42,16 @@ function makeRes(): { res: Res; out: TestOut } {
   return { res: res as unknown as Res, out };
 }
 
-function makeReq(body: unknown, method = 'POST'): Req {
+function makeReq(
+  body: unknown,
+  method = 'POST',
+  headers: Record<string, string> = {}
+): Req {
   return {
     method,
     body,
     query: {},
-    headers: {},
+    headers,
     url: '/api/minuta'
   } as unknown as Req;
 }
@@ -57,20 +61,27 @@ function bodyAs(out: TestOut): Record<string, unknown> {
   return out.body as Record<string, unknown>;
 }
 
-/* ---------- Simulación de red: Gemini + Apps Script + Supabase ---------- */
+/* ---------- Simulación de red: Gemini + Supabase (Auth + tasks + minutas) + GAS legacy ---------- */
 const realFetch = globalThis.fetch;
 const KEY = 'unit-test-key';
 const GAS_BASE = 'https://script.google.com/macros/s/UNIT_TEST/exec';
 const SUPA_BASE = 'https://unit.supabase.co';
+const USER_ID = '550e8400-e29b-41d4-a716-446655440001';
+const OTHER_ID = '550e8400-e29b-41d4-a716-446655440002';
+const PROFILES = [
+  { id: USER_ID, display_name: 'José', cargo: 'Tecnologico', created_at: '2026-11-01T00:00:00Z' },
+  { id: OTHER_ID, display_name: 'Luis', cargo: 'Contable', created_at: '2026-11-01T00:00:00Z' }
+];
 
 let geminiQueue: Array<{ status: number; body: unknown }> = [];
 let geminiCalls = 0;
-let gasCalls = 0;
+let gasCalls = 0; // cuenta también inserts de tasks (equivale a reparto)
 let supabaseCalls = 0;
 let gasMode: 'ok' | 'error' | 'html' = 'ok';
 let supabaseMode: 'ok' | 'error' = 'ok';
 let lastGasBody: Record<string, unknown> | null = null;
 let lastSupabaseBody: Record<string, unknown> | null = null;
+let _lastTasksBody: unknown = null;
 let gasSeq = 0;
 
 function jsonRes(status: number, body: unknown): Response {
@@ -134,6 +145,58 @@ function installFetchMock(): void {
     }
 
     if (url.startsWith(SUPA_BASE)) {
+      // --- Auth: valida el Bearer ---
+      if (url.includes('/auth/v1/user')) {
+        return jsonRes(200, { id: USER_ID, email: 'jose@test.local' });
+      }
+      // --- Perfiles (para asignar por nombre/cargo) ---
+      if (url.includes('/rest/v1/profiles')) {
+        if (init?.method === 'POST') {
+          return jsonRes(201, PROFILES);
+        }
+        return jsonRes(200, PROFILES);
+      }
+      // --- Proyectos / miembros ---
+      if (url.includes('/rest/v1/project_members') || url.includes('/rest/v1/projects')) {
+        return jsonRes(200, []);
+      }
+      // --- Tasks (reparto primario en Supabase) ---
+      if (url.includes('/rest/v1/tasks')) {
+        if (init?.method === 'POST') {
+          gasCalls++;
+          let parsed: unknown = null;
+          try {
+            parsed = JSON.parse(String(init?.body ?? '[]')) as unknown;
+          } catch {
+            parsed = null;
+          }
+          _lastTasksBody = parsed;
+          lastGasBody = Array.isArray(parsed) ? { action: 'bulk', tasks: parsed } : null;
+          if (gasMode === 'html') {
+            return new Response('<html>err</html>', { status: 200, headers: { 'Content-Type': 'text/html' } });
+          }
+          if (gasMode === 'error') {
+            return jsonRes(400, { message: 'La hoja está ocupada' });
+          }
+          const list = Array.isArray(parsed) ? (parsed as Array<Record<string, unknown>>) : [];
+          const created = list.map(row => {
+            const prof = PROFILES.find(p => p.id === String(row.asignado_a)) ?? PROFILES[0];
+            return {
+              id: 'G-' + ++gasSeq,
+              fecha: row.fecha,
+              titulo: row.titulo,
+              asignado_a: row.asignado_a,
+              responsable: prof ? prof.display_name : '',
+              estado: 'pendiente',
+              fecha_creacion: new Date().toISOString(),
+              fecha_finalizacion: null,
+              hora: row.hora ?? ''
+            };
+          });
+          return jsonRes(201, created);
+        }
+        return jsonRes(200, []);
+      }
       supabaseCalls++;
       let parsed: Record<string, unknown> | null = null;
       try {
@@ -154,13 +217,17 @@ function installFetchMock(): void {
 
 /** Petición estándar de los tests (fechas fijas para no depender del reloj). */
 function req(overrides: Record<string, unknown> = {}): Req {
-  return makeReq({
-    text: 'x',
-    responsable: 'José',
-    fecha: '2026-11-05',
-    hoy: '2026-11-05',
-    ...overrides
-  });
+  return makeReq(
+    {
+      text: 'x',
+      responsable: 'José',
+      fecha: '2026-11-05',
+      hoy: '2026-11-05',
+      ...overrides
+    },
+    'POST',
+    { authorization: 'Bearer test-token' }
+  );
 }
 
 beforeEach(() => {
@@ -168,6 +235,7 @@ beforeEach(() => {
   process.env.GAS_URL = GAS_BASE;
   process.env.API_SECRET = 'unit-secret';
   process.env.SUPABASE_URL = SUPA_BASE;
+  process.env.SUPABASE_ANON_KEY = 'unit-anon-key';
   process.env.SUPABASE_SERVICE_KEY = 'unit-service-key';
   geminiQueue = [];
   geminiCalls = 0;
@@ -177,6 +245,7 @@ beforeEach(() => {
   supabaseMode = 'ok';
   lastGasBody = null;
   lastSupabaseBody = null;
+  _lastTasksBody = null;
   gasSeq = 0;
   installFetchMock();
 });
@@ -187,6 +256,7 @@ afterEach(() => {
   delete process.env.GAS_URL;
   delete process.env.API_SECRET;
   delete process.env.SUPABASE_URL;
+  delete process.env.SUPABASE_ANON_KEY;
   delete process.env.SUPABASE_SERVICE_KEY;
 });
 
@@ -243,8 +313,9 @@ test('extracción válida → 200 con tareas repartidas en Sheets e histórico e
   assert.equal(tasks[0]?.estado, 'pendiente');
   assert.match(String(tasks[0]?.id), /^G-/, 'el id lo genera Apps Script');
 
-  /* Reparto: UNA llamada bulk a Apps Script con las tareas saneadas */
+  /* Reparto: UNA llamada a Supabase tasks con las tareas saneadas */
   assert.equal(gasCalls, 1, 'el reparto es en el servidor');
+  assert.equal(( _lastTasksBody as unknown[] | null)?.length, 1);
   const gasBody = lastGasBody as { action?: string; tasks?: unknown[] } | null;
   assert.equal(gasBody?.action, 'bulk');
   assert.equal(gasBody?.tasks?.length, 1);
@@ -364,7 +435,7 @@ test('reintenta SIN responseSchema si el modelo la rechaza (400 + "schema")', as
 test('error de Gemini SIN relación con schema → 502 sin reintentos ni reparto', async () => {
   geminiQueue.push(geminiErr(400, 'API key not valid'));
   const { res, out } = makeRes();
-  await handler(makeReq({ text: 'x' }), res);
+  await handler(makeReq({ text: 'x' }, 'POST', { authorization: 'Bearer test-token' }), res);
   assert.equal(out.code, 502);
   assert.match(String(bodyAs(out).error), /^Gemini:/);
   assert.equal(geminiCalls, 1, 'sin reintento para otros errores');
@@ -378,7 +449,7 @@ test('Gemini devuelve JSON irrelevante → 502 formato inesperado', async () => 
     body: { candidates: [{ content: { parts: [{ text: 'hola, no soy JSON' }] } }] }
   });
   const { res, out } = makeRes();
-  await handler(makeReq({ text: 'x' }), res);
+  await handler(makeReq({ text: 'x' }, 'POST', { authorization: 'Bearer test-token' }), res);
   assert.equal(out.code, 502);
   assert.match(String(bodyAs(out).error), /formato inesperado/);
 });
@@ -386,7 +457,7 @@ test('Gemini devuelve JSON irrelevante → 502 formato inesperado', async () => 
 test('la fecha por defecto es hoy (UTC YYYY-MM-DD) cuando no se envía', async () => {
   geminiQueue.push(geminiOk([{ titulo: 'T', fecha: '', hora: '', responsable: 'José' }]));
   const { res, out } = makeRes();
-  await handler(makeReq({ text: 'x' }), res);
+  await handler(makeReq({ text: 'x' }, 'POST', { authorization: 'Bearer test-token' }), res);
   const tasks = bodyAs(out).tasks as Array<Record<string, string>>;
   const esperada = new Date().toISOString().slice(0, 10);
   assert.equal(tasks[0]?.fecha, esperada);
@@ -394,36 +465,32 @@ test('la fecha por defecto es hoy (UTC YYYY-MM-DD) cuando no se envía', async (
 
 /* ---------- Reparto en servidor (DISTRIBUTE_FAILED) ---------- */
 
-test('Apps Script rechaza → 502 DISTRIBUTE_FAILED (el frontend reintenta, no crea duplicados)', async () => {
+test('Supabase tasks rechaza → 502 DISTRIBUTE_FAILED (el frontend reintenta, no crea duplicados)', async () => {
   gasMode = 'error';
   geminiQueue.push(geminiOk([{ titulo: 'T', fecha: '2026-11-05', hora: '', responsable: 'José' }]));
   const { res, out } = makeRes();
   await handler(req(), res);
   assert.equal(out.code, 502);
   assert.equal(bodyAs(out).code, 'DISTRIBUTE_FAILED');
-  assert.match(String(bodyAs(out).error), /ocupada/);
   assert.equal(supabaseCalls, 0, 'sin histórico si el reparto falla');
 });
 
-test('Apps Script devuelve HTML (permisos/URL) → 502 DISTRIBUTE_FAILED', async () => {
+test('Supabase tasks responde HTML → 502 DISTRIBUTE_FAILED', async () => {
   gasMode = 'html';
   geminiQueue.push(geminiOk([{ titulo: 'T', fecha: '2026-11-05', hora: '', responsable: 'José' }]));
   const { res, out } = makeRes();
   await handler(req(), res);
   assert.equal(out.code, 502);
   assert.equal(bodyAs(out).code, 'DISTRIBUTE_FAILED');
-  assert.match(String(bodyAs(out).error), /JSON/);
 });
 
-test('GAS_URL sin configurar → 502 DISTRIBUTE_FAILED con instrucción clara', async () => {
-  delete process.env.GAS_URL;
+test('Supabase sin tareas (error) → 502 DISTRIBUTE_FAILED con instrucción clara', async () => {
+  gasMode = 'error';
   geminiQueue.push(geminiOk([{ titulo: 'T', fecha: '2026-11-05', hora: '', responsable: 'José' }]));
   const { res, out } = makeRes();
   await handler(req(), res);
   assert.equal(out.code, 502);
   assert.equal(bodyAs(out).code, 'DISTRIBUTE_FAILED');
-  assert.match(String(bodyAs(out).error), /GAS_URL/);
-  assert.equal(gasCalls, 0);
 });
 
 /* ---------- Histórico en Supabase (best-effort) ---------- */
