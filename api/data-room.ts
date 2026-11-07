@@ -32,7 +32,7 @@ import {
   HttpError as _HttpError,
   listAccessibleProjectIds as _listAccessible,
   requireAuth as _requireAuth
-} from './_supabase';
+} from './_supabase.js';
 
 const BUCKET = 'documentos';
 const MAX_SIZE = 15 * 1024 * 1024; // 15 MB por archivo

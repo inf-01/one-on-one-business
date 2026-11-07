@@ -15,7 +15,7 @@
    ============================================================ */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getProfile, HttpError, listProfiles, requireAuth, sfetch, supaEnv } from './_supabase';
+import { getProfile, HttpError, listProfiles, requireAuth, sfetch, supaEnv } from './_supabase.js';
 
 const CARGOS = ['Tecnologico', 'Contable'];
 

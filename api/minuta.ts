@@ -46,7 +46,7 @@ import {
   requireAuth,
   supaEnv,
   type ProfileRow
-} from './_supabase';
+} from './_supabase.js';
 
 const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 const MAX_TEXT = 8000; // caracteres de la minuta

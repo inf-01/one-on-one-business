@@ -1,6 +1,7 @@
 {
   "name": "one-on-one-business",
   "version": "2.0.0",
+  "type": "module",
   "private": true,
   "description": "One on One Business — calendario semanal, dashboard y data room (equipo registrado)",
   "scripts": {

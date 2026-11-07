@@ -31,7 +31,7 @@ import {
   supaEnv,
   type ProfileRow,
   type SupaEnv
-} from './_supabase';
+} from './_supabase.js';
 
 interface TaskRowDb {
   id: string;
