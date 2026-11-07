@@ -556,6 +556,53 @@ const handler = async (req: VercelRequest, res: VercelResponse): Promise<void> =
         }
         return;
       }
+      if (action === 'deleteProject') {
+        const projectId = asUuid(raw.projectId, 'projectId');
+        // Solo el dueño puede eliminar (o proyectos legacy sin owner)
+        const chk = await sfetch(env, '/rest/v1/projects?select=id,owner_id,name&id=eq.' + encodeURIComponent(projectId) + '&limit=1', {
+          headers: supaHeaders(env)
+        });
+        if (!chk.ok) throw new HttpError(502, 'SUPABASE', 'No se pudo verificar el proyecto');
+        const chkRows = (await jsonOf(chk)) as Array<Record<string, unknown>>;
+        const proj = Array.isArray(chkRows) && chkRows[0] ? chkRows[0] : null;
+        if (!proj) {
+          res.status(404).json({ ok: false, code: 'NOT_FOUND', error: 'Proyecto no encontrado' });
+          return;
+        }
+        const owner = String((proj as { owner_id?: unknown }).owner_id ?? '');
+        if (owner && owner !== userId) {
+          res.status(403).json({ ok: false, code: 'FORBIDDEN', error: 'Solo el creador puede eliminar el proyecto' });
+          return;
+        }
+        // 1) Borrar archivos en Storage (best-effort)
+        const docs = await sfetch(env, '/rest/v1/documents?select=path&project_id=eq.' + encodeURIComponent(projectId), {
+          headers: supaHeaders(env)
+        });
+        if (docs.ok) {
+          const docRows = (await jsonOf(docs)) as Array<{ path?: unknown }>;
+          const paths = (Array.isArray(docRows) ? docRows : [])
+            .map(d => (typeof d.path === 'string' ? d.path : ''))
+            .filter(Boolean);
+          if (paths.length) {
+            await sfetch(env, '/storage/v1/object/' + BUCKET, {
+              method: 'DELETE',
+              headers: supaHeaders(env),
+              body: JSON.stringify({ prefixes: paths })
+            }).catch(() => undefined);
+          }
+        }
+        // 2) Borrar proyecto (documents cascada, minutas/tasks quedan sin proyecto)
+        const del = await sfetch(env, '/rest/v1/projects?id=eq.' + encodeURIComponent(projectId), {
+          method: 'DELETE',
+          headers: supaHeaders(env)
+        });
+        if (!del.ok) {
+          res.status(502).json({ ok: false, code: 'SUPABASE', error: 'No se pudo eliminar el proyecto (HTTP ' + del.status + ')' });
+          return;
+        }
+        res.status(200).json({ ok: true });
+        return;
+      }
       if (action === 'sign' || action === 'confirm' || action === 'downloadUrl' || action === 'delete') {
         // Chequear acceso al proyecto si viene projectId
         const pid = typeof raw.projectId === 'string' ? raw.projectId : '';

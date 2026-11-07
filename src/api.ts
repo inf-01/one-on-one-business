@@ -206,6 +206,10 @@ export const DataRoom = {
     return drPost({ action: 'createProject', name });
   },
 
+  deleteProject(projectId: string): Promise<DataRoomResponse> {
+    return drPost({ action: 'deleteProject', projectId });
+  },
+
   /* Pide la URL firmada de subida (valida tamaño/mime/categoría en el servidor) */
   sign(p: {
     projectId: string;

@@ -85,6 +85,7 @@ themeBtn.addEventListener('click', () => {
 /* ---------- Elementos ---------- */
 const projectSelect = $<HTMLSelectElement>('projectSelect');
 const newProjectBtn = $<HTMLButtonElement>('newProjectBtn');
+const deleteProjectBtn = $<HTMLButtonElement>('deleteProjectBtn');
 const drNote = $<HTMLElement>('drNote');
 
 const uploadZone = $<HTMLElement>('uploadZone');
@@ -552,6 +553,26 @@ projectCreateBtn.addEventListener('click', async () => {
     creating = false;
     btn.disabled = false;
     btn.textContent = label;
+  }
+});
+
+deleteProjectBtn.addEventListener('click', async () => {
+  if (!currentProject) return;
+  const name = projects.find(p => p.id === currentProject)?.name ?? 'este proyecto';
+  const ok = window.confirm('¿Eliminar "' + name + '"? Se borrarán sus documentos y minutas. Esta acción no se puede deshacer.');
+  if (!ok) return;
+  deleteProjectBtn.disabled = true;
+  const label = deleteProjectBtn.textContent ?? '';
+  deleteProjectBtn.textContent = 'Eliminando…';
+  try {
+    await DR.deleteProject(currentProject);
+    showToast('Proyecto eliminado ✓ ' + name);
+    await loadProjects();
+  } catch (e) {
+    showToast('⚠ ' + errMsg(e));
+  } finally {
+    deleteProjectBtn.disabled = false;
+    deleteProjectBtn.textContent = label;
   }
 });
 
