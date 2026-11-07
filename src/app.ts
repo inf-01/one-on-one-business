@@ -163,7 +163,24 @@ function nextEstado(e: Estado): Estado {
   return 'pendiente';
 }
 function canEdit(t: Task): boolean {
-  return t.responsable === currentUser || t.created_by === session?.user_id;
+  const uid = session?.user_id ?? '';
+  if (uid && t.assigned_to && t.assigned_to === uid) return true;
+  if (uid && t.created_by === uid) return true;
+  return foldName(t.responsable) === foldName(currentUser);
+}
+function foldName(s: string): string {
+  return String(s ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // sin acentos/ñ→n y mayúsculas→minúsculas
+    .replace(/\s+/g, ' ');
+}
+function isMine(t: Task, user: string): boolean {
+  if (!user) return false;
+  const prof = profiles.find(p => foldName(p.display_name) === foldName(user));
+  if (prof && t.assigned_to) return t.assigned_to === prof.id;
+  return foldName(t.responsable) === foldName(user);
 }
 
 /* ---------- DOM ---------- */
@@ -509,7 +526,11 @@ function renderEvents(): void {
 
   /* PERSONAL = usuario visto en el toggle */
   if (!viewUser && currentUser) viewUser = currentUser;
-  const mine = list.filter(t => t.responsable === viewUser);
+  // Si la vista quedó en un nombre viejo ("JOSE" de antes), recurre a mí
+  if (viewUser && members().length && !members().some(n => foldName(n) === foldName(viewUser))) {
+    viewUser = currentUser;
+  }
+  const mine = list.filter(t => isMine(t, viewUser));
   const mTotal = mine.length;
   const mDone = mine.filter(isDone).length;
   const mPct = mTotal ? Math.round((mDone / mTotal) * 100) : 0;
@@ -1046,8 +1067,16 @@ async function boot(): Promise<void> {
       setSession(session);
       if (!viewUser || !prefGet('neu_active_user', null)) viewUser = currentUser;
     }
-    const list = (listData as unknown as { profiles?: Profile[] }).profiles;
-    profiles = Array.isArray(list) ? list : [];
+    profiles = Array.isArray((listData as unknown as { profiles?: Profile[] }).profiles)
+      ? ((listData as unknown as { profiles?: Profile[] }).profiles as Profile[])
+      : [];
+    // Si la vista quedó en un nombre viejo ("JOSE" de antes de migrar), vuelve a mí
+    const prefView = viewUser || currentUser;
+    const inMembers = profiles.some(p => foldName(p.display_name) === foldName(prefView));
+    viewUser = inMembers
+      ? (profiles.find(p => foldName(p.display_name) === foldName(prefView))?.display_name ?? currentUser)
+      : currentUser;
+    prefSet('neu_active_user', viewUser);
   } catch (e) {
     const code = e instanceof ApiError ? e.code : undefined;
     if (code === 'UNAUTHENTICATED' || code === 'NO_PROFILE') {

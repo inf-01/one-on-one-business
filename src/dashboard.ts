@@ -7,8 +7,15 @@
 
 import '../css/styles.css'; // Vite bundlea el CSS junto con este módulo
 import { API, Auth, getSession, setSession, ApiError } from './api';
-import { memberClass, memberNames } from './members';
+import { memberClass, memberNames, foldName } from './members';
 import type { Profile, Task } from './types';
+
+/** Mal menor: la BD devuelve assigned_to (UUID). Prioriza eso sobre el nombre. */
+function tasksOf(list: Task[], user: string): Task[] {
+  const prof = profiles.find(p => foldName(p.display_name) === foldName(user));
+  if (prof) return list.filter(t => (t.assigned_to ?? '') === prof.id || foldName(t.responsable) === foldName(user));
+  return list.filter(t => foldName(t.responsable) === foldName(user));
+}
 
 function $<T extends HTMLElement>(id: string): T {
   const el = document.getElementById(id);
@@ -58,7 +65,7 @@ function countEstado(list: Task[], estado: Task['estado']): number {
 
 /* Fila de la tabla de rendimiento por miembro */
 function userRow(user: string, tasks: Task[], names: string[]): string {
-  const mine = tasks.filter(t => t.responsable === user);
+  const mine = tasksOf(tasks, user);
   const done = countEstado(mine, 'completada');
   const progress = countEstado(mine, 'en progreso');
   const pending = countEstado(mine, 'pendiente');
@@ -90,7 +97,7 @@ function paintSpeedUsers(tasks: Task[], names: string[]): void {
     user.textContent = name.toUpperCase();
     const val = document.createElement('span');
     val.className = 'speed-val';
-    val.textContent = fmtDuration(avgHours(tasks.filter(t => t.responsable === name)));
+    val.textContent = fmtDuration(avgHours(tasksOf(tasks, name)));
     item.append(user, val);
     wrap.appendChild(item);
   });
