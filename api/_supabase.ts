@@ -37,11 +37,16 @@ export class HttpError extends Error {
 }
 
 export function supaEnv(): SupaEnv | null {
-  const url = process.env.SUPABASE_URL;
+  const rawUrl = process.env.SUPABASE_URL;
   const anon = process.env.SUPABASE_ANON_KEY;
   const service = process.env.SUPABASE_SERVICE_KEY;
-  if (!url || !service) return null;
-  return { url: url.replace(/\/+$/, ''), anon: anon ?? '', service };
+  if (!rawUrl || !service) return null;
+  // Tolerancia: si pegaron .../rest/v1 con o sin / final, lo normalizamos.
+  const url = rawUrl
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\/rest\/v1\/?$/, '');
+  return { url, anon: anon ?? '', service };
 }
 
 export function supaHeaders(env: SupaEnv, extra?: Record<string, string>): Record<string, string> {
@@ -62,7 +67,9 @@ export async function sfetch(
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    return await fetch(env.url + path, { ...init, signal: ctrl.signal });
+    const initHeaders = (init?.headers ?? {}) as Record<string, string>;
+    const headers: Record<string, string> = { ...supaHeaders(env), ...initHeaders };
+    return await fetch(env.url + path, { ...init, headers, signal: ctrl.signal });
   } finally {
     clearTimeout(timer);
   }

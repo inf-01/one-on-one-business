@@ -32,21 +32,14 @@ const BASE = '/api/sync';
 const DR_BASE = '/api/data-room';
 const AUTH_BASE = '/api/auth';
 
-/* ---------- Sesión (solo sessionStorage: nada de claves) ---------- */
+/* ---------- Sesión (localStorage: persiste entre pestañas y secciones) ---------- */
 const SESSION_KEY = 'neu_session';
 
 export function getSession(): Session | null {
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
-    if (!raw) {
-      const legacy = localStorage.getItem(SESSION_KEY);
-      if (legacy) {
-        sessionStorage.setItem(SESSION_KEY, legacy);
-        localStorage.removeItem(SESSION_KEY);
-        return JSON.parse(legacy) as Session;
-      }
-      return null;
-    }
+    const raw =
+      localStorage.getItem(SESSION_KEY) ?? sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
     return JSON.parse(raw) as Session;
   } catch {
     return null;
@@ -54,10 +47,13 @@ export function getSession(): Session | null {
 }
 export function setSession(s: Session | null): void {
   try {
-    if (s) sessionStorage.setItem(SESSION_KEY, JSON.stringify(s));
-    else {
-      sessionStorage.removeItem(SESSION_KEY);
+    if (s) {
+      const json = JSON.stringify(s);
+      localStorage.setItem(SESSION_KEY, json);
+      sessionStorage.setItem(SESSION_KEY, json);
+    } else {
       localStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(SESSION_KEY);
     }
   } catch {
     /* sin almacenamiento */
