@@ -567,7 +567,7 @@ function renderEvents(): void {
       <span class="badge ${estadoClass(t.estado)}">${estadoLabel(t.estado)}</span>
       <button class="neu-btn del" aria-label="Eliminar evento">✕</button>
       <div class="event-detail" id="${detailId}" hidden>
-        <label class="event-delay-label" for="${detailId}-input">Motivo del retraso</label>
+        <label class="event-delay-label" for="${detailId}-input">NOTAS:</label>
         <textarea class="event-delay" id="${detailId}-input" rows="2" maxlength="500" placeholder="¿Por qué se retrasó esta tarea?"></textarea>
         <div class="event-detail-foot">
           <span class="event-delay-count" aria-hidden="true">0/500</span>
