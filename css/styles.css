@@ -774,3 +774,53 @@ a.neu-btn.nav-btn, a.neu-btn.today-btn { text-decoration: none; display: flex; a
   .event { padding: 8px 10px; }
   .upload-text span { font-size: 11.5px; }
 }
+
+/* ---------- Detalle expandible de la tarea (texto completo + motivo del retraso) ----------
+   Se revela al tocar la línea de la tarea. No altera el aspecto colapsado. */
+.event.expanded { flex-wrap: wrap; }
+.event .info { display: flex; align-items: center; gap: 8px; cursor: pointer; border-radius: 8px; }
+.event .info:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.event .info-inner { flex: 1; min-width: 0; }
+.event.expanded .info .t { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: break-word; }
+.event .expand-caret { flex-shrink: 0; font-size: 11px; line-height: 1; color: var(--text-soft); transition: transform .18s ease; }
+.event.expanded .expand-caret { transform: rotate(180deg); }
+
+.event-detail {
+  flex-basis: 100%;
+  display: flex; flex-direction: column; gap: 6px;
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+.event-delay-label {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-soft);
+}
+.event-delay {
+  width: 100%; border: 1px solid var(--border); border-radius: 8px;
+  padding: 9px 11px; font-size: 13px; color: var(--text);
+  background: var(--surface-2); font-family: inherit;
+  min-height: 56px; resize: vertical; line-height: 1.45; box-sizing: border-box;
+}
+.event-delay:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.event-delay:disabled { opacity: .6; cursor: default; }
+.event-detail-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.event-delay-count { font-size: 11px; color: var(--text-soft); font-variant-numeric: tabular-nums; }
+.event-save { font-size: 12px; padding: 8px 14px; }
+
+/* Móvil: el bloque de motivo ocupa todo el ancho y el botón se estira */
+@media (max-width: 560px) {
+  .event-detail { padding-top: 8px; }
+  .event-detail-foot { flex-direction: column; align-items: stretch; }
+  .event-delay-count { align-self: flex-end; }
+  .event-save { width: 100%; padding: 10px 14px; }
+}
+
+/* En expandido: primera línea (check · barra · badge · ✕) y el texto completo a todo el ancho */
+.event.expanded .check { order: 1; }
+.event.expanded .bar { order: 2; align-self: center; }
+.event.expanded .badge { order: 3; margin-left: auto; }
+.event.expanded .del { order: 4; }
+.event.expanded .info { order: 5; flex-basis: 100%; }
+.event.expanded .info-inner { flex: 1; }
+.event.expanded { align-items: center; }
+.event.expanded .event-detail { order: 6; }

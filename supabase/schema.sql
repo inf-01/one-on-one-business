@@ -55,7 +55,8 @@ create table if not exists public.tasks (
   asignado_a uuid not null references public.profiles(id) on delete cascade,
   creado_por uuid references public.profiles(id) on delete set null,
   fecha_creacion timestamptz not null default now(),
-  fecha_finalizacion timestamptz
+  fecha_finalizacion timestamptz,
+  motivo_retraso text
 );
 alter table public.tasks drop constraint if exists tasks_estado_check;
 alter table public.tasks add constraint tasks_estado_check
@@ -67,6 +68,7 @@ alter table public.tasks add column if not exists fecha_creacion timestamptz not
 alter table public.tasks add column if not exists fecha_finalizacion timestamptz;
 alter table public.tasks add column if not exists hora text not null default '';
 alter table public.tasks add column if not exists titulo text;
+alter table public.tasks add column if not exists motivo_retraso text;
 alter table public.tasks add column if not exists fecha date;
 alter table public.tasks add column if not exists estado text not null default 'pendiente';
 

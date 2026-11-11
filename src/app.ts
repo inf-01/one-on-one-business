@@ -400,7 +400,8 @@ function normalizeTask(raw: TaskRaw | undefined): Task {
     hora: String(src.hora || ''),
     project_id: (src.project_id as string | null) ?? currentProject,
     assigned_to: (src.assigned_to as string | null) ?? null,
-    created_by: (src.created_by as string | null) ?? null
+    created_by: (src.created_by as string | null) ?? null,
+    motivoRetraso: String(src.motivoRetraso || '')
   };
 }
 async function reload(): Promise<void> {
@@ -547,7 +548,8 @@ function renderEvents(): void {
     return;
   }
 
-  list.forEach(t => {
+  list.forEach((t, idx) => {
+    const detailId = 'task-detail-' + idx;
     const row = document.createElement('div');
     row.className =
       'neu-inset event' +
@@ -555,17 +557,83 @@ function renderEvents(): void {
     row.innerHTML = `
       <div class="check" aria-label="Cambiar estado">${isDone(t) ? '✓' : t.estado === 'en progreso' ? '◐' : ''}</div>
       <div class="bar ${memberClass(t.responsable, names)}"></div>
-      <div class="info">
-        <div class="t"></div>
-        <div class="h"></div>
+      <div class="info" role="button" tabindex="0" aria-expanded="false" aria-controls="${detailId}" title="Toca para ver o ocultar el detalle">
+        <div class="info-inner">
+          <div class="t"></div>
+          <div class="h"></div>
+        </div>
+        <span class="expand-caret" aria-hidden="true">▾</span>
       </div>
       <span class="badge ${estadoClass(t.estado)}">${estadoLabel(t.estado)}</span>
       <button class="neu-btn del" aria-label="Eliminar evento">✕</button>
+      <div class="event-detail" id="${detailId}" hidden>
+        <label class="event-delay-label" for="${detailId}-input">Motivo del retraso</label>
+        <textarea class="event-delay" id="${detailId}-input" rows="2" maxlength="500" placeholder="¿Por qué se retrasó esta tarea?"></textarea>
+        <div class="event-detail-foot">
+          <span class="event-delay-count" aria-hidden="true">0/500</span>
+          <button class="neu-btn save-btn event-save" type="button">Guardar motivo</button>
+        </div>
+      </div>
     `;
     $q<HTMLElement>(row, '.t').textContent = t.titulo;
     $q<HTMLElement>(row, '.h').textContent =
       t.responsable + ' · ' + (t.hora ? t.hora : 'Todo el día');
     const mineTask = canEdit(t);
+
+    /* ---- Detalle expandible: texto completo + motivo del retraso ---- */
+    const infoToggle = $q<HTMLElement>(row, '.info');
+    const detail = $q<HTMLElement>(row, '.event-detail');
+    const delayInput = $q<HTMLTextAreaElement>(row, '.event-delay');
+    const delayCount = $q<HTMLElement>(row, '.event-delay-count');
+    const delaySave = $q<HTMLButtonElement>(row, '.event-save');
+    delayInput.value = t.motivoRetraso ?? '';
+    const updateCount = (): void => {
+      delayCount.textContent = delayInput.value.length + '/500';
+    };
+    updateCount();
+    if (!mineTask) {
+      delayInput.disabled = true;
+      delaySave.disabled = true;
+      delayInput.title = 'Solo el responsable o el creador pueden anotar el motivo';
+    }
+    delayInput.addEventListener('input', updateCount);
+    const setExpanded = (expand: boolean): void => {
+      row.classList.toggle('expanded', expand);
+      detail.hidden = !expand;
+      infoToggle.setAttribute('aria-expanded', String(expand));
+    };
+    const toggleExpanded = (): void => setExpanded(detail.hasAttribute('hidden'));
+    infoToggle.addEventListener('click', () => {
+      /* Si el usuario está seleccionando texto, no colapsar la tarjeta */
+      const sel = window.getSelection();
+      if (sel && sel.toString().trim().length > 0) return;
+      toggleExpanded();
+    });
+    infoToggle.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        toggleExpanded();
+      }
+    });
+    delaySave.addEventListener('click', async () => {
+      if (!t.id) {
+        showToast('⚠ Esta tarea aún no está sincronizada con la nube');
+        return;
+      }
+      const value = delayInput.value.trim();
+      delaySave.disabled = true;
+      try {
+        const data = await API.updateTask(t.id, { motivoRetraso: value });
+        Object.assign(t, normalizeTask({ ...t, ...data.task }));
+        delayInput.value = t.motivoRetraso ?? '';
+        updateCount();
+        showToast(value ? 'Motivo del retraso guardado ✓' : 'Motivo del retraso borrado');
+      } catch (err) {
+        showToast('⚠ ' + errMsg(err));
+      } finally {
+        delaySave.disabled = !canEdit(t);
+      }
+    });
 
     $q<HTMLElement>(row, '.check').addEventListener('click', async () => {
       if (!t.id) return;

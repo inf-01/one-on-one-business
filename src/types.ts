@@ -42,6 +42,7 @@ export interface Task {
   project_id?: string | null;
   assigned_to?: string | null; // uuid de profiles.id
   created_by?: string | null;
+  motivoRetraso?: string; // por qué se retrasó la tarea (lo anota el responsable/creador)
 }
 
 /** Crudo que llega de la API, de un JSON importado o de la IA. */
@@ -57,6 +58,7 @@ export interface TaskRaw {
   project_id?: string | null;
   assigned_to?: string | null;
   created_by?: string | null;
+  motivoRetraso?: string;
 }
 
 /** Cambios permitidos vía action=update. */

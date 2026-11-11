@@ -45,6 +45,7 @@ interface TaskRowDb {
   project_id?: string | null;
   assigned_to?: string | null;
   created_by?: string | null;
+  motivoRetraso: string;
 }
 
 function looksLikeJson(text: string): boolean {
@@ -76,7 +77,8 @@ function toTask(db: Record<string, unknown>, profiles: ProfileRow[]): TaskRowDb 
     hora: String(db.hora ?? ''),
     project_id: typeof db.project_id === 'string' ? db.project_id : null,
     assigned_to: assigned || null,
-    created_by: typeof db.creado_por === 'string' ? db.creado_por : null
+    created_by: typeof db.creado_por === 'string' ? db.creado_por : null,
+    motivoRetraso: typeof db.motivo_retraso === 'string' ? db.motivo_retraso : ''
   };
 }
 
@@ -261,6 +263,7 @@ async function supaCreate(
   }
 
   const now = new Date().toISOString();
+  const motivo = typeof raw.motivoRetraso === 'string' ? raw.motivoRetraso.trim().slice(0, 500) : '';
   const payload: Record<string, unknown> = {
     titulo: base.titulo,
     fecha: base.fecha,
@@ -272,6 +275,7 @@ async function supaCreate(
     fecha_creacion: now,
     fecha_finalizacion: base.estado === 'completada' ? now : null
   };
+  if (motivo) payload.motivo_retraso = motivo;
   const r = await sfetch(env, '/rest/v1/tasks', {
     method: 'POST',
     headers: {
@@ -446,6 +450,10 @@ const handler = async (req: VercelRequest, res: VercelResponse): Promise<void> =
         if (typeof changes.estado === 'string' && (changes.estado === 'pendiente' || changes.estado === 'en progreso' || changes.estado === 'completada')) {
           patch.estado = changes.estado;
           patch.fecha_finalizacion = changes.estado === 'completada' ? new Date().toISOString() : null;
+        }
+        // Motivo del retraso: mismo permiso de edición que el estado (asignado / creador / dueño).
+        if (typeof changes.motivoRetraso === 'string') {
+          patch.motivo_retraso = changes.motivoRetraso.trim().slice(0, 500) || null;
         }
         const newResponsable = typeof changes.responsable === 'string' ? changes.responsable.trim() : '';
         const newAssigned = typeof changes.assigned_to === 'string' ? changes.assigned_to : '';
